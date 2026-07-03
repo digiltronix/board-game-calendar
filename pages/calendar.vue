@@ -677,12 +677,14 @@ async function removeFromMyCalendar(gathering: GatheringWithId) {
     0 4px 16px rgba(0, 0, 0, 0.35),
     0 1px 4px rgba(200, 134, 10, 0.1);
 }
-/* Past gatherings are history: keep them readable but visually receded */
-.event-item--past {
-  opacity: 0.75;
-}
+/* Past gatherings are history: recede the card chrome (bg/border) only —
+   dimming the content via opacity drops error/success chips below AA contrast */
+.event-item--past,
 .event-item--past:hover {
+  background: rgba(200, 134, 10, 0.02);
+  border-color: rgba(200, 134, 10, 0.08);
   transform: none;
+  box-shadow: none;
 }
 .event-line {
   font-size: 0.98rem;
