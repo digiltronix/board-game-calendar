@@ -54,7 +54,12 @@ jobs:
           GOOGLE_APPLICATION_CREDENTIALS: /tmp/sa.json
 
       - name: Deploy functions to Firebase
+        # --force deletes deployed functions that are no longer in the source
+        # (deletion can't prompt in CI). Needed so renaming a function — e.g.
+        # onEmailInviteCreated → onEmailInviteAdded, which was required to
+        # replace a function stuck with the wrong trigger type — cleans up the
+        # orphan instead of failing the deploy.
         run: |
-          npx firebase-tools@latest deploy --only functions --project board-game-calendar-3ae94
+          npx firebase-tools@latest deploy --only functions --force --project board-game-calendar-3ae94
         env:
           GOOGLE_APPLICATION_CREDENTIALS: /tmp/sa.json
