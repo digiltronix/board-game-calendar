@@ -385,7 +385,7 @@ async function createGathering() {
     await update(dbRef(db), indexUpdates)
 
     // Sync email invites: delete removed ones, push new ones
-    // (onEmailInviteAdded Cloud Function fires only for genuinely new entries)
+    // (onGatheringEmailInvite Cloud Function fires only for genuinely new entries)
     const originalEmails = new Set(
       Object.values(existingEmailInvitesByKey).map((e) => e.toLowerCase())
     )
