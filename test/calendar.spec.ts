@@ -4,6 +4,7 @@ import {
   eventDescription,
   googleCalendarUrl,
   buildIcs,
+  toCalendarEventInput,
   type CalendarEventInput,
 } from '~/helpers/calendar'
 
@@ -66,5 +67,54 @@ describe('buildIcs', () => {
   it('escapes commas in the description per RFC 5545', () => {
     const ics = buildIcs(event, APP_URL)
     expect(ics).toContain('Catan\\, Wingspan')
+  })
+})
+
+describe('location and notes', () => {
+  it('adds a Google Calendar location param only when a location is set', () => {
+    const withLocation = new URL(
+      googleCalendarUrl({ ...event, location: '1 Main St' }, APP_URL)
+    )
+    expect(withLocation.searchParams.get('location')).toBe('1 Main St')
+    const bare = new URL(googleCalendarUrl(event, APP_URL))
+    expect(bare.searchParams.has('location')).toBe(false)
+  })
+
+  it('emits an escaped LOCATION line only when a location is set', () => {
+    const ics = buildIcs(
+      { ...event, location: '1 Main St, Apt 2; ring twice' },
+      APP_URL
+    )
+    expect(ics).toContain('LOCATION:1 Main St\\, Apt 2\\; ring twice')
+    expect(buildIcs(event, APP_URL)).not.toContain('LOCATION:')
+  })
+
+  it('includes notes in the description', () => {
+    const desc = eventDescription({ ...event, notes: 'Bring snacks' }, APP_URL)
+    expect(desc).toContain('Bring snacks')
+  })
+
+  it('carries location and notes from the gathering, dropping cleared nulls', () => {
+    const base = {
+      id: 'abc123',
+      state: 'pending' as const,
+      datetime: event.datetime,
+      timezone: 'America/Chicago',
+      initiator: 'h',
+      host: 'h',
+      maxGuests: 4,
+    }
+    const withValues = toCalendarEventInput(
+      { ...base, location: '1 Main St', notes: 'Bring snacks' },
+      'Alex Johnson'
+    )
+    expect(withValues.location).toBe('1 Main St')
+    expect(withValues.notes).toBe('Bring snacks')
+    const cleared = toCalendarEventInput(
+      { ...base, location: null, notes: null },
+      'Alex Johnson'
+    )
+    expect('location' in cleared).toBe(false)
+    expect('notes' in cleared).toBe(false)
   })
 })

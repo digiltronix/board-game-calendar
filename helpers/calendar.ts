@@ -8,6 +8,8 @@ export type CalendarEventInput = {
   gatheringId: string
   datetime: string // ISO date (UTC)
   hostName?: string
+  location?: string
+  notes?: string
   games?: { name: string }[]
 }
 
@@ -47,6 +49,9 @@ export function eventDescription(
   const parts: string[] = []
   if (input.hostName) parts.push(`Hosted by ${input.hostName}.`)
   if (games.length) parts.push(`Games: ${games.join(', ')}.`)
+  // Terminate free-text notes so they don't run into the details link
+  if (input.notes)
+    parts.push(/[.!?]$/.test(input.notes) ? input.notes : `${input.notes}.`)
   parts.push(`Details: ${appUrl}/calendar`)
   return parts.join(' ')
 }
@@ -63,6 +68,7 @@ export function googleCalendarUrl(
     text: eventTitle(input.hostName),
     dates,
     details: eventDescription(input, appUrl),
+    ...(input.location ? { location: input.location } : {}),
   })
   return `https://calendar.google.com/calendar/render?${params.toString()}`
 }
@@ -93,6 +99,7 @@ export function buildIcs(input: CalendarEventInput, appUrl: string): string {
     `DTEND:${toIcsUtc(endDate(input.datetime))}`,
     `SUMMARY:${escapeIcs(eventTitle(input.hostName))}`,
     `DESCRIPTION:${escapeIcs(eventDescription(input, appUrl))}`,
+    ...(input.location ? [`LOCATION:${escapeIcs(input.location)}`] : []),
     `URL:${appUrl}/calendar`,
     'END:VEVENT',
     'END:VCALENDAR',
@@ -108,6 +115,8 @@ export function toCalendarEventInput(
     gatheringId: gathering.id,
     datetime: gathering.datetime,
     hostName,
+    ...(gathering.location ? { location: gathering.location } : {}),
+    ...(gathering.notes ? { notes: gathering.notes } : {}),
     games: gathering.games,
   }
 }

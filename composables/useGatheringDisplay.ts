@@ -12,11 +12,13 @@ export function useGatheringDisplay() {
   async function resolveNames(sections: {
     hosting: GatheringWithId[]
     invited: GatheringWithId[]
+    past?: GatheringWithId[]
   }) {
     const wanted = new Set<string>()
     for (const gathering of sections.hosting)
       Object.keys(gathering.guests ?? {}).forEach((guestUid) => wanted.add(guestUid))
     for (const gathering of sections.invited) wanted.add(gathering.host)
+    for (const gathering of sections.past ?? []) wanted.add(gathering.host)
     const missing = [...wanted].filter((personUid) => !(personUid in names.value))
     await Promise.all(
       missing.map(async (personUid) => {

@@ -1,3 +1,4 @@
+import { GATHERING_DURATION_HOURS } from './calendar'
 import type { Gathering, GatheringState, GuestResponse } from './types'
 
 export type GatheringWithId = Gathering & { id: string }
@@ -5,14 +6,33 @@ export type GatheringWithId = Gathering & { id: string }
 const byDatetime = (a: GatheringWithId, b: GatheringWithId) =>
   a.datetime.localeCompare(b.datetime)
 
+// A gathering counts as past once its full play window has elapsed, so
+// tonight's game night stays in the upcoming sections while it's happening.
+export function isPast(gathering: Gathering, now: Date): boolean {
+  const start = new Date(gathering.datetime).getTime()
+  if (Number.isNaN(start)) return false
+  return start + GATHERING_DURATION_HOURS * 60 * 60 * 1000 < now.getTime()
+}
+
 // Splits the user's gatherings (loaded via their userGatherings/{uid} index,
-// so all are ones they host or are invited to) into the calendar sections
-export function splitGatherings(gatherings: GatheringWithId[], uid: string) {
+// so all are ones they host or are invited to) into the calendar sections.
+// Upcoming ones are split into hosting/invited (soonest first); past ones land
+// in a single section, most recent first.
+export function splitGatherings(
+  gatherings: GatheringWithId[],
+  uid: string,
+  now: Date = new Date()
+) {
+  const relevant = gatherings.filter(
+    (g) => g.host === uid || g.guests?.[uid] !== undefined
+  )
+  const upcoming = relevant.filter((g) => !isPast(g, now))
   return {
-    hosting: gatherings.filter((g) => g.host === uid).sort(byDatetime),
-    invited: gatherings
-      .filter((g) => g.host !== uid && g.guests?.[uid])
-      .sort(byDatetime),
+    hosting: upcoming.filter((g) => g.host === uid).sort(byDatetime),
+    invited: upcoming.filter((g) => g.host !== uid).sort(byDatetime),
+    past: relevant
+      .filter((g) => isPast(g, now))
+      .sort((a, b) => byDatetime(b, a)),
   }
 }
 

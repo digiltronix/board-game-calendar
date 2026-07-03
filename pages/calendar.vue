@@ -24,7 +24,7 @@
           />
         </v-card-text>
         <v-card-text
-          v-else-if="!hosting.length && !invited.length"
+          v-else-if="!hosting.length && !invited.length && !past.length"
           class="pa-6"
         >
           <div class="empty-state">
@@ -65,6 +65,14 @@
                   ><v-icon size="16" class="mr-1">mdi-clock-outline</v-icon
                   >{{ formatDatetime(gathering.datetime) }}</span
                 >
+              </div>
+              <div v-if="gathering.location" class="event-line mb-3">
+                <v-icon size="16" class="mr-1">mdi-map-marker-outline</v-icon
+                >{{ gathering.location }}
+              </div>
+              <div v-if="gathering.notes" class="event-line mb-3">
+                <v-icon size="16" class="mr-1">mdi-note-text-outline</v-icon
+                >{{ gathering.notes }}
               </div>
               <div v-if="gathering.games?.length" class="event-line mb-3">
                 <v-icon size="16" class="mr-1">mdi-rhombus-split</v-icon>
@@ -196,6 +204,14 @@
                 <v-icon size="16" class="mr-1">mdi-account</v-icon>Hosted by
                 {{ names[gathering.host] ?? '…' }}
               </div>
+              <div v-if="gathering.location" class="event-line mb-3">
+                <v-icon size="16" class="mr-1">mdi-map-marker-outline</v-icon
+                >{{ gathering.location }}
+              </div>
+              <div v-if="gathering.notes" class="event-line mb-3">
+                <v-icon size="16" class="mr-1">mdi-note-text-outline</v-icon
+                >{{ gathering.notes }}
+              </div>
               <div v-if="gathering.games?.length" class="event-line mb-3">
                 <v-icon size="16" class="mr-1">mdi-rhombus-split</v-icon>
                 <v-chip
@@ -257,6 +273,87 @@
                 </v-menu>
               </div>
             </div>
+          </template>
+
+          <div
+            v-if="!hosting.length && !invited.length"
+            class="empty-desc text-center py-4"
+          >
+            No upcoming gatherings — host one or get invited.
+          </div>
+
+          <template v-if="past.length">
+            <v-divider class="my-4" />
+            <v-btn
+              variant="text"
+              color="accent"
+              size="small"
+              :aria-expanded="showPast ? 'true' : 'false'"
+              @click="showPast = !showPast"
+            >
+              <v-icon start>{{
+                showPast ? 'mdi-chevron-up' : 'mdi-chevron-down'
+              }}</v-icon>
+              Past gatherings ({{ past.length }})
+            </v-btn>
+            <template v-if="showPast">
+              <div
+                v-for="gathering in past"
+                :key="gathering.id"
+                class="event-item event-item--past pa-5 mb-4 mt-3"
+              >
+                <div class="d-flex align-center flex-wrap gap-3 mb-3">
+                  <v-chip
+                    :color="stateColor(gathering.state)"
+                    size="small"
+                    variant="tonal"
+                    class="text-capitalize"
+                    >{{ gathering.state }}</v-chip
+                  >
+                  <span class="event-line"
+                    ><v-icon size="16" class="mr-1">mdi-clock-outline</v-icon
+                    >{{ formatDatetime(gathering.datetime) }}</span
+                  >
+                </div>
+                <div v-if="gathering.host !== uid" class="event-line mb-3">
+                  <v-icon size="16" class="mr-1">mdi-account</v-icon>Hosted by
+                  {{ names[gathering.host] ?? '…' }}
+                </div>
+                <div v-if="gathering.games?.length" class="event-line mb-3">
+                  <v-icon size="16" class="mr-1">mdi-rhombus-split</v-icon>
+                  <v-chip
+                    v-for="game in gathering.games"
+                    :key="game.id"
+                    size="x-small"
+                    variant="outlined"
+                    class="mr-1"
+                    >{{ game.name }}</v-chip
+                  >
+                </div>
+                <div class="event-actions">
+                  <v-btn
+                    v-if="gathering.host === uid"
+                    density="compact"
+                    size="small"
+                    variant="text"
+                    color="error"
+                    @click.stop="deleteGathering(gathering)"
+                  >
+                    <v-icon start>mdi-delete</v-icon>Delete
+                  </v-btn>
+                  <v-btn
+                    v-else
+                    density="compact"
+                    size="small"
+                    variant="text"
+                    color="error"
+                    @click.stop="removeFromMyCalendar(gathering)"
+                  >
+                    <v-icon start>mdi-delete</v-icon>Remove
+                  </v-btn>
+                </div>
+              </div>
+            </template>
           </template>
         </v-card-text>
       </v-card>
@@ -415,9 +512,15 @@ const gatherings = computed<GatheringWithId[]>(() =>
     ...gathering,
   }))
 )
-const sections = computed(() => splitGatherings(gatherings.value, uid))
+// The past/upcoming cutoff is fixed at page load; fine for a page visit.
+const loadedAt = new Date()
+const sections = computed(() =>
+  splitGatherings(gatherings.value, uid, loadedAt)
+)
 const hosting = computed(() => sections.value.hosting)
 const invited = computed(() => sections.value.invited)
+const past = computed(() => sections.value.past)
+const showPast = ref(false)
 
 watch(sections, (value) => {
   void resolveNames(value)
@@ -541,6 +644,20 @@ async function deleteGathering(gathering: GatheringWithId) {
 function editGathering(gathering: GatheringWithId) {
   router.push({ path: routes.newGathering, query: { id: gathering.id } })
 }
+
+// Guests can always delete their own index entry (the same rule that backs
+// dangling-pointer cleanup); the index listener then drops the gathering.
+async function removeFromMyCalendar(gathering: GatheringWithId) {
+  try {
+    await remove(dbRef(db, `userGatherings/${uid}/${gathering.id}`))
+    logEvent('gathering_removed_from_calendar')
+  } catch (err) {
+    snackbar.value?.showSnackbarWithMessage(
+      helpers.handleError(err).message,
+      true
+    )
+  }
+}
 </script>
 
 <style scoped>
@@ -559,6 +676,13 @@ function editGathering(gathering: GatheringWithId) {
   box-shadow:
     0 4px 16px rgba(0, 0, 0, 0.35),
     0 1px 4px rgba(200, 134, 10, 0.1);
+}
+/* Past gatherings are history: keep them readable but visually receded */
+.event-item--past {
+  opacity: 0.75;
+}
+.event-item--past:hover {
+  transform: none;
 }
 .event-line {
   font-size: 0.98rem;

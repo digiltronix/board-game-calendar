@@ -39,7 +39,7 @@ Nuxt 4.4 + Vue 3.5 + Vuetify 4.1 (MD3, dark theme) + Pinia 3 + Firebase RTDB (no
 | `profile.vue`        | `/profile`        | `users/{uid}` (private fields), `profiles/{uid}` (public fields); email shown from auth                                                                           |
 | `gamecollection.vue` | `/gamecollection` | `users/{uid}/collection/{pushId}`                                                                                                                                 |
 | `friends.vue`        | `/friends`        | `profiles/` (search + display), `users/{uid}/friends`, `friendRequests/{uid}`, `blocked/{uid}` (decline writes)                                                   |
-| `calendar.vue`       | `/calendar`       | `userGatherings/{uid}` (own index), `gatherings/{id}` (one listener per entry; splits hosting/invited client-side), `profiles/{uid}/name`                         |
+| `calendar.vue`       | `/calendar`       | `userGatherings/{uid}` (own index), `gatherings/{id}` (one listener per entry; splits hosting/invited/past client-side), `profiles/{uid}/name`                         |
 | `gatherings/new.vue` | `/gatherings/new` | `gatherings/{pushId}` (create; `?id=` edits in place) then `userGatherings/*` index sync, `users/{uid}` (own prefill), `profiles/{uid}/name` (friend/guest names) |
 | `index.vue`          | `/`               | none                                                                                                                                                              |
 | `privacy.vue`        | `/privacy`        | none — static privacy policy (public, no auth)                                                                                                                    |
@@ -63,9 +63,9 @@ Analytics is **opt-in** — `plugins/01-firebase.client.ts` does not load `fireb
 - `stores/user.ts` — Pinia store; `{ user: User | null }`; actions: `setUser`, `signInWithGoogle`, `signOut`
 - `middleware/auth.global.ts` — redirects unauthenticated → `/signin?redirect={fullPath}`; `useAuthSignIn` reads `?redirect` post-login (internal paths only, open-redirect-guarded)
 - `helpers/types.ts` — shared TS types incl. `FormInstance` for Vuetify 4 form refs
-- `helpers/gatherings.ts` — `splitGatherings`, state/response color+icon maps, `formatDatetime`
+- `helpers/gatherings.ts` — `splitGatherings` (upcoming hosting/invited + a `past` section; a gathering turns past once `datetime` + the 3-hour play window elapses, see `isPast`), state/response color+icon maps, `formatDatetime`
 - `helpers/collection.ts` — `filterAndSortCollection` + `collectionGenres`; pure + unit-tested; returns ordered `CollectionEntry[]`
-- `helpers/calendar.ts` — `googleCalendarUrl()`, `buildIcs()` (3-hour VEVENT, no location), `downloadIcs()`, `toCalendarEventInput()`. Cloud Functions duplicate this — keep both in sync.
+- `helpers/calendar.ts` — `googleCalendarUrl()`, `buildIcs()` (3-hour VEVENT; `LOCATION` from the gathering's `location`, `notes` folded into the description), `downloadIcs()`, `toCalendarEventInput()`. Cloud Functions duplicate this — keep both in sync.
 - `database.rules.json` — Firebase Realtime DB security rules (deployed by `cd.yml`)
 
 ### Components
@@ -114,12 +114,25 @@ Pages own routing/layout, composables own data/logic (`composables/`, auto-impor
 }
 // the account email is not stored; the UI reads it from Firebase Auth
 
-// users/{uid}/collection/{pushId} — owner-only, like the rest of users/{uid}
+// users/{uid}/collection/{pushId} — owner-writable; readable by the owner and
+// their *mutual* friends (rule-enforced), which backs the friend-collection
+// view at /gamecollection?uid={friendId}
 type Game = {
   id: string // BoardGameGeek game ID
   name: string
-  rating?: number
+  thumbnail: string
+  minplayers?: string // …maxplayers, minplaytime, maxplaytime, yearpublished — BGG strings
   categories?: string[] // BGG `boardgamecategory` values (genres); drives the collection genre-filter chips. RTDB array (numeric-keyed); each entry validated as string ≤60 chars. Absent when BGG lists none.
+  publicNote?: string
+}
+
+// users/{uid}/gameOpinions/{gameId} — owner-only (ratings and private notes are
+// NOT visible to friends); keyed by BGG game id so opinions survive collection
+// removal ("Also rated" section)
+type GameOpinion = {
+  name: string // denormalized for display
+  rating?: number // 0–5
+  privateNote?: string
 }
 
 // users/{uid}/friends/{friendId}: true — mutual; written to both sides on accept
@@ -132,9 +145,12 @@ type Game = {
 type Gathering = {
   state: GatheringState // 'pending' | 'confirmed' | 'canceled'
   datetime: string // ISO date
+  timezone: string // IANA zone of the host at creation; used by email formatting
   initiator: string // uid; pinned to auth.uid at creation, immutable after
   host: string // uid; immutable after creation
   maxGuests: number
+  location?: string | null // ≤200 chars; shown to guests, included in emails + calendar exports. Written as null (not omitted) when cleared so edit-in-place update() deletes it
+  notes?: string | null // ≤500 chars; host notes for guests, same null-when-cleared convention
   guests?: Record<string, GuestResponse> // keyed by uid; 'invited' | 'accepted' | 'declined'; new invites require the guest to have friended the host
   games?: GatheringGame[] // { id, name } — denormalized from the host's collection
   emailInvites?: Record<string, string> // pushId → email address; non-user invitees
@@ -150,7 +166,7 @@ type Gathering = {
 `database.rules.json` covers `profiles/`, `users/`, `friendRequests/`, `blocked/`, `gatherings/`, and `userGatherings/` (deployed automatically by `cd.yml` on push to `main`; manual deploy: `firebase deploy --only database`). All nodes reject unknown keys via `"$other": { ".validate": false }` and bound types/lengths with field-level `.validate` rules.
 
 - `profiles/{uid}` — the public/private profile split: only this node is readable by any authenticated user (required for friend search queries on `queryableName`/`queryableEmail`/`queryablePhone`, all indexed via `.indexOn`); owner-only write. A _new_ `queryableEmail` must match `auth.token.email` **with `email_verified === true`** (so an unverified signup can't squat someone else's address; sign-in writes it once verified, and profile saves preserve the stored value); `name` and `queryableName` must agree (`queryableName === lowercase(name)`, enforced symmetrically so neither can drift); `queryablePhone` must be digits-only.
-- `users/{uid}` — owner-only read **and** write: phone, address, maxPeople, the game collection (incl. `privateNote`), and the friends list are not visible to other users.
+- `users/{uid}` — owner-only read **and** write for phone, address, maxPeople, `gameOpinions` (ratings + `privateNote`), and the friends list — with one carve-out: `users/{uid}/collection` is additionally readable by *mutual* friends (both sides present in each other's friends lists), which backs the friend-collection view.
 - `friendRequests/{toUid}/{fromUid}` — top-level so authorship is rule-enforced (a request nested under the recipient's own subtree was owner-forgeable). Only the sender can create (not overwrite) a `'pending'` entry, blocked senders can't; only the recipient can delete. Recipient reads their whole node; a sender can read only their own outgoing entry.
 - `blocked/{ownerUid}/{blockedUid}` — owner-only read and write; value must be `true`.
 - `users/{uid}/friends/{friendId}` — the owner can write their own list; additionally `friendId` may add themselves only while a pending request from `uid` exists at `friendRequests/{friendId}/{uid}` (the accept flow's mutual multi-path update), and may always delete themselves (mutual unfriend).
@@ -177,9 +193,9 @@ BoardGameGeek XML API v2 — proxied via Firebase Cloud Functions (`bggSearch`, 
 
 ## Email notifications & calendar export
 
-Transactional emails are sent server-side from `functions/src/index.ts` via Resend (`RESEND_API_KEY` secret; `FROM_EMAIL`; `APP_URL = https://bgc.jasonsuttles.dev` — keep this current with the deployed domain, it backs every email link). Triggers: `onFriendRequest`, `onGatheringInvite`, `onGatheringStateChange`, `onGatheringEmailInvite`.
+Transactional emails are sent server-side from `functions/src/index.ts` via Resend (`RESEND_API_KEY` secret; `FROM_EMAIL`; `APP_URL = https://bgc.jasonsuttles.dev` — keep this current with the deployed domain, it backs every email link). Triggers: `onFriendRequest`, `onGatheringInvite`, `onGuestResponse` (guest accepts/declines → host is emailed; skips `invited` seeds, no-op rewrites, and canceled gatherings), `onGatheringStateChange`, `onGatheringEmailInvite`. Invite and confirmation emails include the gathering's `location`/`notes` when set (`gatheringDetailsHtml`).
 
-**Retry semantics** (2nd-gen event functions do **not** retry on error unless the trigger sets `retry: true`): the three single-recipient triggers (`onFriendRequest`, `onGatheringInvite`, `onGatheringEmailInvite`) set `retry: true` and throw only on *transient* Resend failures (429/5xx/network — `sendEmail` returns `'sent' | 'retry' | 'failed'`), so Eventarc redelivers with backoff; permanent rejections (unverified domain, invalid recipient) are logged and dropped. The multi-recipient `onGatheringStateChange` never retries or throws per-recipient — redelivery would re-send to guests who already got the email. With retry enabled, keep those handlers idempotent and never let a permanently-failing lookup (e.g. `getUser` on a deleted account) throw.
+**Retry semantics** (2nd-gen event functions do **not** retry on error unless the trigger sets `retry: true`): the four single-recipient triggers (`onFriendRequest`, `onGatheringInvite`, `onGuestResponse`, `onGatheringEmailInvite`) set `retry: true` and throw only on *transient* Resend failures (429/5xx/network — `sendEmail` returns `'sent' | 'retry' | 'failed'`), so Eventarc redelivers with backoff; permanent rejections (unverified domain, invalid recipient) are logged and dropped. The multi-recipient `onGatheringStateChange` never retries or throws per-recipient — redelivery would re-send to guests who already got the email. With retry enabled, keep those handlers idempotent and never let a permanently-failing lookup (e.g. `getUser` on a deleted account) throw.
 
 - **Calendar export in-app**: the calendar page renders an "Add to calendar" menu (Google Calendar / Apple·Outlook `.ics`) on every non-canceled hosting and invited card, via `helpers/calendar.ts`.
 - **Calendar in emails**: invite + confirmation emails include an "Add to Google Calendar" link and attach a `.ics` invite (`sendEmail`'s optional `attachments: [{ filename, content }]`, content base64). Cancellation emails get neither.
@@ -188,7 +204,7 @@ Transactional emails are sent server-side from `functions/src/index.ts` via Rese
 
 ## Test Setup
 
-Unit tests live in `test/` (`Logo.spec.ts`, `authErrors.spec.ts`, `gatherings.spec.ts`, `collection.spec.ts`); security-rules tests in `test/rules/` run via `yarn test:rules` against the RTDB emulator (`vitest.rules.config.ts`). Vitest requires `environment: 'jsdom'` (set in `vitest.config.ts`). Vuetify must be inlined via `server.deps.inline: ['vuetify']` to avoid CSS import errors. Import `createVuetify` and pass it as a global plugin to `mount`.
+Unit tests live in `test/` (`Logo.spec.ts`, `authErrors.spec.ts`, `gatherings.spec.ts`, `calendar.spec.ts`, `collection.spec.ts`); security-rules tests in `test/rules/` run via `yarn test:rules` against the RTDB emulator (`vitest.rules.config.ts`). Vitest requires `environment: 'jsdom'` (set in `vitest.config.ts`). Vuetify must be inlined via `server.deps.inline: ['vuetify']` to avoid CSS import errors. Import `createVuetify` and pass it as a global plugin to `mount`.
 
 ## Design Conventions
 

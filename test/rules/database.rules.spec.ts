@@ -571,6 +571,37 @@ describe('gatherings rules', () => {
     )
   })
 
+  it('accepts optional location and notes within their length limits', async () => {
+    await seedFriendship('guest1', 'host1')
+    await assertSucceeds(
+      set(ref(db('host1'), 'gatherings/g1'), {
+        ...baseGathering,
+        location: '1 Main St, Apt 2',
+        notes: 'Bring snacks',
+      })
+    )
+    // clearing them (null) is a delete, not a validate failure
+    await assertSucceeds(
+      update(ref(db('host1'), 'gatherings/g1'), {
+        location: null,
+        notes: null,
+      })
+    )
+  })
+
+  it('rejects oversized or non-string location and notes', async () => {
+    await seed('gatherings/g1', baseGathering)
+    await assertFails(
+      update(ref(db('host1'), 'gatherings/g1'), { location: 'x'.repeat(201) })
+    )
+    await assertFails(
+      update(ref(db('host1'), 'gatherings/g1'), { notes: 'x'.repeat(501) })
+    )
+    await assertFails(
+      update(ref(db('host1'), 'gatherings/g1'), { location: 42 })
+    )
+  })
+
   it('rejects unknown keys on a gathering', async () => {
     await seedFriendship('guest1', 'host1')
     await assertFails(

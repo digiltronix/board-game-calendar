@@ -345,6 +345,8 @@ type CalendarEvent = {
   gatheringId: string
   datetime: string
   hostName?: string
+  location?: string
+  notes?: string
   games?: { name?: string }[]
 }
 
@@ -380,6 +382,9 @@ function eventDescription(event: CalendarEvent): string {
   const parts: string[] = []
   if (event.hostName) parts.push(`Hosted by ${event.hostName}.`)
   if (games.length) parts.push(`Games: ${games.join(', ')}.`)
+  // Terminate free-text notes so they don't run into the details link
+  if (event.notes)
+    parts.push(/[.!?]$/.test(event.notes) ? event.notes : `${event.notes}.`)
   parts.push(`Details: ${APP_URL}/calendar`)
   return parts.join(' ')
 }
@@ -391,6 +396,7 @@ function googleCalendarUrl(event: CalendarEvent): string {
     text: eventTitle(event.hostName),
     dates,
     details: eventDescription(event),
+    ...(event.location ? { location: event.location } : {}),
   })
   return `https://calendar.google.com/calendar/render?${params.toString()}`
 }
@@ -417,6 +423,7 @@ function buildIcs(event: CalendarEvent): string {
     `DTEND:${toIcsUtc(eventEnd(event.datetime))}`,
     `SUMMARY:${escapeIcs(eventTitle(event.hostName))}`,
     `DESCRIPTION:${escapeIcs(eventDescription(event))}`,
+    ...(event.location ? [`LOCATION:${escapeIcs(event.location)}`] : []),
     `URL:${APP_URL}/calendar`,
     'END:VEVENT',
     'END:VCALENDAR',
@@ -450,6 +457,40 @@ async function getProfileName(uid: string): Promise<string> {
   const snap = await getDatabase().ref(`profiles/${uid}/name`).get()
   const val = snap.val()
   return typeof val === 'string' ? val : 'Someone'
+}
+
+// Raw gathering node as read from RTDB; fields are validated by the security
+// rules but read back untyped, so narrow each one before use.
+type GatheringRecord = Record<string, unknown>
+
+function optionalString(value: unknown): string | undefined {
+  return typeof value === 'string' && value ? value : undefined
+}
+
+function toCalendarEvent(
+  gatheringId: string,
+  gathering: GatheringRecord,
+  hostName: string
+): CalendarEvent {
+  return {
+    gatheringId,
+    datetime: gathering.datetime as string,
+    hostName,
+    location: optionalString(gathering.location),
+    notes: optionalString(gathering.notes),
+    games: gathering.games as { name?: string }[] | undefined,
+  }
+}
+
+// "Where" + host-notes lines shared by the invite and confirmation emails.
+function gatheringDetailsHtml(gathering: GatheringRecord): string {
+  const location = optionalString(gathering.location)
+  const notes = optionalString(gathering.notes)
+  const parts: string[] = []
+  if (location)
+    parts.push(`<p><strong>Where:</strong> ${escapeHtml(location)}</p>`)
+  if (notes) parts.push(`<p>${escapeHtml(notes)}</p>`)
+  return parts.join('\n')
 }
 
 // Sends an invite email when a new email address is added to a gathering's
@@ -500,12 +541,7 @@ export const onGatheringEmailInvite = onValueCreated(
       gathering.datetime as string,
       gathering.timezone as string | undefined
     )
-    const calEvent: CalendarEvent = {
-      gatheringId,
-      datetime: gathering.datetime as string,
-      hostName,
-      games: gathering.games as { name?: string }[] | undefined,
-    }
+    const calEvent = toCalendarEvent(gatheringId, gathering, hostName)
     const safeHost = escapeHtml(hostName)
     const safeDatetime = escapeHtml(datetime)
     const gamesList = ((gathering.games as { name?: string }[] | null) ?? [])
@@ -519,6 +555,7 @@ export const onGatheringEmailInvite = onValueCreated(
       `You're invited to a board game night!`,
       `<p>Hi there,</p>
 <p><strong>${safeHost}</strong> has invited you to a board game night on <strong>${safeDatetime}</strong>.</p>
+${gatheringDetailsHtml(gathering)}
 ${gamesHtml}
 <p>Accept or decline (you'll be asked to sign in or create a free account):</p>
 ${rsvpButtonsHtml(gatheringId)}
@@ -653,17 +690,13 @@ export const onGatheringInvite = onValueWritten(
       gathering.datetime as string,
       gathering.timezone as string
     )
-    const calEvent: CalendarEvent = {
-      gatheringId,
-      datetime: gathering.datetime as string,
-      hostName,
-      games: gathering.games as { name?: string }[] | undefined,
-    }
+    const calEvent = toCalendarEvent(gatheringId, gathering, hostName)
     const result = await sendEmail(
       guestUser.email,
       `You're invited to a board game night!`,
       `<p>Hi there,</p>
 <p><strong>${escapeHtml(hostName)}</strong> has invited you to a board game night on <strong>${escapeHtml(datetime)}</strong>.</p>
+${gatheringDetailsHtml(gathering)}
 ${rsvpButtonsHtml(gatheringId)}
 <p><a href="${APP_URL}/calendar">View on your calendar</a></p>
 ${calendarLinkHtml(calEvent)}`,
@@ -672,6 +705,65 @@ ${calendarLinkHtml(calEvent)}`,
     if (result === 'retry')
       throw new Error(
         `Transient failure sending invite email to ${guestUser.email}`
+      )
+  }
+)
+
+// Notifies the host when a guest answers an invitation, so hosts don't have to
+// poll the calendar page to know whether game night is happening. Fires on the
+// same path as onGatheringInvite but on the opposite transitions: guest-authored
+// 'accepted'/'declined' writes (including the acceptEmailInvite admin write),
+// never the host-authored 'invited' seeds that onGatheringInvite handles.
+export const onGuestResponse = onValueWritten(
+  {
+    ref: 'gatherings/{gatheringId}/guests/{guestUid}',
+    secrets: [RESEND_API_KEY],
+    instance: 'board-game-calendar-3ae94-default-rtdb',
+    retry: true,
+  },
+  async (event) => {
+    const after = event.data.after.val() as string | null
+    const before = event.data.before.val() as string | null
+    // Only actual answers: skip removals, invites, and no-op rewrites (the
+    // host preserving an existing response while editing).
+    if (after !== 'accepted' && after !== 'declined') return
+    if (after === before) return
+    const { gatheringId, guestUid } = event.params
+    const gatheringSnap = await getDatabase()
+      .ref(`gatherings/${gatheringId}`)
+      .get()
+    const gathering = gatheringSnap.val() as GatheringRecord | null
+    if (!gathering) return
+    // A decline against an already-canceled gathering isn't news to the host
+    if (gathering.state === 'canceled') return
+    // See onFriendRequest: with retry enabled, a permanently-missing account
+    // must not throw, or the event would be redelivered until it expires.
+    const [hostUser, guestName] = await Promise.all([
+      getAuth()
+        .getUser(gathering.host as string)
+        .catch(() => null),
+      getProfileName(guestUid),
+    ])
+    if (!hostUser?.email) return
+    const datetime = formatDatetime(
+      gathering.datetime as string,
+      gathering.timezone as string | undefined
+    )
+    const safeGuest = escapeHtml(guestName)
+    const safeDatetime = escapeHtml(datetime)
+    const accepted = after === 'accepted'
+    const result = await sendEmail(
+      hostUser.email,
+      accepted
+        ? `${guestName} is in for game night`
+        : `${guestName} can't make game night`,
+      `<p>Hi there,</p>
+<p><strong>${safeGuest}</strong> has ${accepted ? 'accepted' : 'declined'} your invitation to the board game night on <strong>${safeDatetime}</strong>.</p>
+<p><a href="${APP_URL}/calendar">View your calendar</a></p>`
+    )
+    if (result === 'retry')
+      throw new Error(
+        `Transient failure sending RSVP email to ${hostUser.email}`
       )
   }
 )
@@ -717,15 +809,11 @@ export const onGatheringStateChange = onValueUpdated(
         : `Game night canceled: ${datetime}`
     const safeHost = escapeHtml(hostName)
     const safeDatetime = escapeHtml(datetime)
-    const calEvent: CalendarEvent = {
-      gatheringId,
-      datetime: gathering.datetime as string,
-      hostName,
-      games: gathering.games as { name?: string }[] | undefined,
-    }
+    const calEvent = toCalendarEvent(gatheringId, gathering, hostName)
     const html =
       newState === 'confirmed'
         ? `<p>Great news! <strong>${safeHost}</strong> has confirmed the board game night on <strong>${safeDatetime}</strong>.</p>
+${gatheringDetailsHtml(gathering)}
 <p><a href="${APP_URL}/calendar">View on your calendar</a></p>
 ${calendarLinkHtml(calEvent)}`
         : `<p><strong>${safeHost}</strong> has unfortunately canceled the board game night on <strong>${safeDatetime}</strong>.</p>
