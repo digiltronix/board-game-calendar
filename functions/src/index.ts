@@ -456,14 +456,16 @@ async function getProfileName(uid: string): Promise<string> {
 // emailInvites list. The recipient may not have an account yet; the email
 // includes RSVP deep-links that go through the normal sign-in redirect flow.
 //
-// NOTE: this was originally exported as `onEmailInviteCreated`, but that name
-// got stuck in production as an HTTPS function (a broken first deploy), and
-// GCF refuses to change a function's trigger type in place — every deploy
-// failed with "Changing from an HTTPS function to a background triggered
-// function is not allowed". Deploying under a new name creates a fresh
-// function with the correct RTDB trigger; the orphaned old one is removed by
-// the `--force` flag on the CD deploy. Do not rename this back.
-export const onEmailInviteAdded = onValueCreated(
+// NOTE ON THE NAME: a v2 function create whose container build fails leaves a
+// half-created record with no Eventarc trigger, which GCF then treats as an
+// HTTPS function — and GCF refuses to change a function's trigger type in
+// place, so every later deploy of that name fails with "Changing from an
+// HTTPS function to a background triggered function is not allowed". Both
+// `onEmailInviteCreated` (original name, broken first deploy) and
+// `onEmailInviteAdded` (renamed, then its create died in a dependency-conflict
+// build failure) are poisoned in production this way; the `--force` flag on
+// the CD deploy deletes them once a deploy succeeds. Do not reuse either name.
+export const onGatheringEmailInvite = onValueCreated(
   {
     ref: 'gatherings/{gatheringId}/emailInvites/{inviteId}',
     secrets: [RESEND_API_KEY],
