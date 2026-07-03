@@ -278,26 +278,33 @@ function escapeHtml(s: string): string {
 
 type EmailAttachment = { filename: string; content: string } // content: base64
 
-// Sends a single email via Resend. Returns whether it succeeded; logs the
-// response body on failure either way. Callers with a single recipient
-// (friend requests, gathering invites, email invites) should throw on a
-// `false` return so Cloud Functions' built-in retry can recover from a
-// transient Resend error — 2nd-gen event-driven functions retry on a thrown
-// error by default. Callers that loop over multiple recipients (gathering
-// state changes) should NOT rethrow per-recipient failures, since a retry
-// would re-send to everyone, including recipients who already got it.
+// Sends a single email via Resend and classifies the outcome. Event-driven
+// 2nd-gen functions do NOT retry on error by default — retry is opt-in via
+// `retry: true` on the trigger, which the single-recipient triggers (friend
+// requests, gathering invites, email invites) set. Those callers throw on
+// 'retry' so Eventarc redelivers the event (with backoff, for up to ~24h);
+// they must NOT throw on 'failed' (a non-transient rejection such as an
+// unverified domain or an invalid recipient), where retrying would just
+// hammer Resend with a request that can never succeed. The multi-recipient
+// caller (gathering state changes) has no retry and ignores the result
+// entirely: redelivery there would re-send to recipients who already got
+// the email.
+type SendResult = 'sent' | 'retry' | 'failed'
+
 async function sendEmail(
   to: string,
   subject: string,
   html: string,
   attachments?: EmailAttachment[]
-): Promise<boolean> {
+): Promise<SendResult> {
   const res = await fetch('https://api.resend.com/emails', {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${RESEND_API_KEY.value()}`,
       'Content-Type': 'application/json',
     },
+    // A hung connection would otherwise burn the whole function timeout
+    signal: AbortSignal.timeout(15_000),
     body: JSON.stringify({
       from: FROM_EMAIL,
       to,
@@ -309,9 +316,9 @@ async function sendEmail(
   if (!res.ok) {
     const body = await res.text()
     console.error(`Resend error ${res.status} for ${to}: ${body}`)
-    return false
+    return res.status === 429 || res.status >= 500 ? 'retry' : 'failed'
   }
-  return true
+  return 'sent'
 }
 
 function formatDatetime(iso: string, timezone?: string): string {
@@ -453,17 +460,31 @@ export const onEmailInviteCreated = onValueCreated(
     ref: 'gatherings/{gatheringId}/emailInvites/{inviteId}',
     secrets: [RESEND_API_KEY],
     instance: 'board-game-calendar-3ae94-default-rtdb',
+    retry: true,
   },
   async (event) => {
+    const { gatheringId, inviteId } = event.params
     const email = event.data.val() as string | null
-    if (!email || typeof email !== 'string') return
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return
-    const { gatheringId } = event.params
+    if (
+      !email ||
+      typeof email !== 'string' ||
+      !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
+    ) {
+      console.warn(
+        `Skipping email invite ${gatheringId}/${inviteId}: not a valid address`
+      )
+      return
+    }
     const gatheringSnap = await getDatabase()
       .ref(`gatherings/${gatheringId}`)
       .get()
     const gathering = gatheringSnap.val() as Record<string, unknown> | null
-    if (!gathering) return
+    if (!gathering) {
+      console.warn(
+        `Skipping email invite ${gatheringId}/${inviteId}: gathering gone`
+      )
+      return
+    }
     const hostName = await getProfileName(gathering.host as string)
     const datetime = formatDatetime(
       gathering.datetime as string,
@@ -483,7 +504,7 @@ export const onEmailInviteCreated = onValueCreated(
     const gamesHtml = gamesList.length
       ? `<p><strong>Games planned:</strong> ${gamesList.join(', ')}</p>`
       : ''
-    const sent = await sendEmail(
+    const result = await sendEmail(
       email,
       `You're invited to a board game night!`,
       `<p>Hi there,</p>
@@ -495,7 +516,8 @@ ${rsvpButtonsHtml(gatheringId)}
 ${calendarLinkHtml(calEvent)}`,
       [icsAttachment(calEvent)]
     )
-    if (!sent) throw new Error(`Failed to send invite email to ${email}`)
+    if (result === 'retry')
+      throw new Error(`Transient failure sending invite email to ${email}`)
   }
 )
 
@@ -563,23 +585,32 @@ export const onFriendRequest = onValueCreated(
     ref: 'friendRequests/{toUid}/{fromUid}',
     secrets: [RESEND_API_KEY],
     instance: 'board-game-calendar-3ae94-default-rtdb',
+    retry: true,
   },
   async (event) => {
     const { toUid, fromUid } = event.params
+    // With retry enabled, a permanently-missing account (deleted between the
+    // request write and this event) must not throw, or the event would be
+    // redelivered until it expires.
     const [toUser, fromName] = await Promise.all([
-      getAuth().getUser(toUid),
+      getAuth()
+        .getUser(toUid)
+        .catch(() => null),
       getProfileName(fromUid),
     ])
-    if (!toUser.email) return
+    if (!toUser?.email) return
     const safeName = escapeHtml(fromName)
-    const sent = await sendEmail(
+    const result = await sendEmail(
       toUser.email,
       `${fromName} sent you a friend request`,
       `<p>Hi there,</p>
 <p><strong>${safeName}</strong> has sent you a friend request on Board Game Calendar.</p>
 <p><a href="${APP_URL}/friends">View your friend requests</a></p>`
     )
-    if (!sent) throw new Error(`Failed to send friend request email to ${toUser.email}`)
+    if (result === 'retry')
+      throw new Error(
+        `Transient failure sending friend request email to ${toUser.email}`
+      )
   }
 )
 
@@ -588,6 +619,7 @@ export const onGatheringInvite = onValueWritten(
     ref: 'gatherings/{gatheringId}/guests/{guestUid}',
     secrets: [RESEND_API_KEY],
     instance: 'board-game-calendar-3ae94-default-rtdb',
+    retry: true,
   },
   async (event) => {
     const after = event.data.after.val() as string | null
@@ -596,11 +628,14 @@ export const onGatheringInvite = onValueWritten(
     if (after !== 'invited' || (before !== null && before !== 'declined'))
       return
     const { gatheringId, guestUid } = event.params
+    // See onFriendRequest: a missing account must not trip the retry loop
     const [guestUser, gatheringSnap] = await Promise.all([
-      getAuth().getUser(guestUid),
+      getAuth()
+        .getUser(guestUid)
+        .catch(() => null),
       getDatabase().ref(`gatherings/${gatheringId}`).get(),
     ])
-    if (!guestUser.email) return
+    if (!guestUser?.email) return
     const gathering = gatheringSnap.val() as Record<string, unknown> | null
     if (!gathering) return
     const hostName = await getProfileName(gathering.host as string)
@@ -614,7 +649,7 @@ export const onGatheringInvite = onValueWritten(
       hostName,
       games: gathering.games as { name?: string }[] | undefined,
     }
-    const sent = await sendEmail(
+    const result = await sendEmail(
       guestUser.email,
       `You're invited to a board game night!`,
       `<p>Hi there,</p>
@@ -624,7 +659,10 @@ ${rsvpButtonsHtml(gatheringId)}
 ${calendarLinkHtml(calEvent)}`,
       [icsAttachment(calEvent)]
     )
-    if (!sent) throw new Error(`Failed to send invite email to ${guestUser.email}`)
+    if (result === 'retry')
+      throw new Error(
+        `Transient failure sending invite email to ${guestUser.email}`
+      )
   }
 )
 

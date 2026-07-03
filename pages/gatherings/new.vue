@@ -183,25 +183,24 @@ function isValidEmail(email: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
 }
 
-function addEmailInvite() {
+// Returns false only when the field holds an invalid address (an empty field
+// and a duplicate are both fine). Also called on submit, so an address typed
+// into the field but never "Add"ed isn't silently dropped from the gathering.
+function addEmailInvite(): boolean {
   const email = emailInput.value.trim().toLowerCase()
-  if (!email) return
+  if (!email) return true
   if (!isValidEmail(email)) {
     snackbar.value?.showSnackbarWithMessage(
       'Please enter a valid email address.',
       true
     )
-    return
+    return false
   }
-  if (emailInviteList.value.includes(email)) {
-    snackbar.value?.showSnackbarWithMessage(
-      'This email has already been added.',
-      true
-    )
-    return
+  if (!emailInviteList.value.includes(email)) {
+    emailInviteList.value.push(email)
   }
-  emailInviteList.value.push(email)
   emailInput.value = ''
+  return true
 }
 
 function removeEmailInvite(email: string) {
@@ -318,6 +317,9 @@ onMounted(async () => {
 })
 
 async function createGathering() {
+  // Flush a typed-but-not-added email invite into the list; abort the save if
+  // it's invalid so the error isn't lost behind a successful-looking save.
+  if (!addEmailInvite()) return
   const result = await gatheringForm.value?.validate()
   if (!result?.valid) return
   const datetime = new Date(`${date.value}T${time.value}`)
