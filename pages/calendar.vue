@@ -66,13 +66,13 @@
                   >{{ formatDatetime(gathering.datetime) }}</span
                 >
               </div>
-              <div v-if="gathering.location" class="event-line mb-3">
-                <v-icon size="16" class="mr-1">mdi-map-marker-outline</v-icon
-                >{{ gathering.location }}
+              <div v-if="gathering.location" class="event-line event-line--text mb-3">
+                <v-icon size="16" class="mr-1">mdi-map-marker-outline</v-icon>
+                <span class="event-text">{{ gathering.location }}</span>
               </div>
-              <div v-if="gathering.notes" class="event-line mb-3">
-                <v-icon size="16" class="mr-1">mdi-note-text-outline</v-icon
-                >{{ gathering.notes }}
+              <div v-if="gathering.notes" class="event-line event-line--text mb-3">
+                <v-icon size="16" class="mr-1">mdi-note-text-outline</v-icon>
+                <span class="event-text">{{ gathering.notes }}</span>
               </div>
               <div v-if="gathering.games?.length" class="event-line mb-3">
                 <v-icon size="16" class="mr-1">mdi-rhombus-split</v-icon>
@@ -204,13 +204,13 @@
                 <v-icon size="16" class="mr-1">mdi-account</v-icon>Hosted by
                 {{ names[gathering.host] ?? '…' }}
               </div>
-              <div v-if="gathering.location" class="event-line mb-3">
-                <v-icon size="16" class="mr-1">mdi-map-marker-outline</v-icon
-                >{{ gathering.location }}
+              <div v-if="gathering.location" class="event-line event-line--text mb-3">
+                <v-icon size="16" class="mr-1">mdi-map-marker-outline</v-icon>
+                <span class="event-text">{{ gathering.location }}</span>
               </div>
-              <div v-if="gathering.notes" class="event-line mb-3">
-                <v-icon size="16" class="mr-1">mdi-note-text-outline</v-icon
-                >{{ gathering.notes }}
+              <div v-if="gathering.notes" class="event-line event-line--text mb-3">
+                <v-icon size="16" class="mr-1">mdi-note-text-outline</v-icon>
+                <span class="event-text">{{ gathering.notes }}</span>
               </div>
               <div v-if="gathering.games?.length" class="event-line mb-3">
                 <v-icon size="16" class="mr-1">mdi-rhombus-split</v-icon>
@@ -694,6 +694,20 @@ async function removeFromMyCalendar(gathering: GatheringWithId) {
   align-items: center;
   flex-wrap: wrap;
   gap: 6px;
+}
+/* Free-text lines (location, notes): keep the icon and text side by side and
+   let long text word-wrap with a hanging indent instead of orphaning the icon */
+.event-line--text {
+  flex-wrap: nowrap;
+  align-items: flex-start;
+}
+.event-line--text .v-icon {
+  margin-top: 3px; /* optically centers the 16px icon on the first text line */
+}
+.event-line--text .event-text {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 /* Slightly larger, more legible chips inside the event cards */
 .event-item :deep(.v-chip) {

@@ -27,7 +27,7 @@ Pre-commit hooks run `yarn lint` via husky + lint-staged. Commits must follow Co
 
 ## Stack
 
-Nuxt 4.4 + Vue 3.5 + Vuetify 4.1 (MD3, dark theme) + Pinia 3 + Firebase RTDB (not Firestore) + TypeScript strict. ESLint 10 flat config via `@nuxt/eslint` + Prettier. Vitest 4 + `@nuxt/test-utils` (jsdom).
+Nuxt 4.4 + Vue 3.5 + Vuetify 4.1 (MD3, dark theme) + Pinia 3 + Firebase RTDB (not Firestore) + TypeScript strict. ESLint 10 flat config via `@nuxt/eslint` + Prettier. Vitest 4 + `@nuxt/test-utils` (jsdom). MDI icons are self-hosted via the `@mdi/font` devDependency — vuetify-nuxt-module auto-detects it and bundles the font; don't remove it, or icons silently fall back to a CDN (blocked in the screenshot sandbox, so every `v-icon` renders blank there).
 
 ## Architecture
 

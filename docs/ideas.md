@@ -30,15 +30,6 @@ address" with no recovery path. Possible fixes: let the host re-send to a
 different address from the gathering page, or a signed one-time token in the
 invite link that doesn't depend on the email matching. Parked for now.
 
-## Bundle @mdi/font locally
-
-Vuetify's MDI icon font currently loads from a CDN (no `@mdi/font` in
-`package.json`), so every `v-icon` renders blank in offline/sandboxed
-environments — including the `yarn screenshot` tool, which makes
-screenshot-driven design review miss icon regressions. Installing `@mdi/font`
-and pointing Vuetify at it would make icons self-hosted (also removes a
-third-party request in production).
-
 ## Sign-in fails inside in-app browsers (webviews)
 
 Sign-in is OAuth-popup-only (`signInWithPopup`, Google/Facebook). Invite
