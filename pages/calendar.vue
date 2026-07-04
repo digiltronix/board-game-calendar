@@ -3,7 +3,7 @@
     <v-col cols="12" sm="11" md="9" lg="6">
       <v-card>
         <v-card-title class="d-flex align-center pa-6">
-          <v-icon color="primary" class="mr-3">mdi-calendar</v-icon>
+          <v-icon color="primary" class="mr-3">$calendar</v-icon>
           <h1 class="page-title">Calendar</h1>
           <v-spacer />
           <v-btn
@@ -12,7 +12,7 @@
             size="small"
             :to="routes.newGathering"
           >
-            <v-icon start>mdi-calendar-plus</v-icon>New
+            <v-icon start>$calendarPlus</v-icon>New
           </v-btn>
         </v-card-title>
         <v-divider />
@@ -24,12 +24,12 @@
           />
         </v-card-text>
         <v-card-text
-          v-else-if="!hosting.length && !invited.length"
+          v-else-if="!hosting.length && !invited.length && !past.length"
           class="pa-6"
         >
           <div class="empty-state">
             <v-icon size="64" color="primary" class="mb-4" style="opacity: 0.3"
-              >mdi-calendar-blank-outline</v-icon
+              >$calendarBlankOutline</v-icon
             >
             <div class="empty-title">No gatherings yet</div>
             <div class="empty-desc">
@@ -41,7 +41,7 @@
               class="mt-4"
               :to="routes.newGathering"
             >
-              <v-icon start>mdi-calendar-plus</v-icon>New gathering
+              <v-icon start>$calendarPlus</v-icon>New gathering
             </v-btn>
           </div>
         </v-card-text>
@@ -62,12 +62,20 @@
                   >{{ gathering.state }}</v-chip
                 >
                 <span class="event-line"
-                  ><v-icon size="16" class="mr-1">mdi-clock-outline</v-icon
+                  ><v-icon size="16" class="mr-1">$clockOutline</v-icon
                   >{{ formatDatetime(gathering.datetime) }}</span
                 >
               </div>
+              <div v-if="gathering.location" class="event-line event-line--text mb-3">
+                <v-icon size="16" class="mr-1">$mapMarkerOutline</v-icon>
+                <span class="event-text">{{ gathering.location }}</span>
+              </div>
+              <div v-if="gathering.notes" class="event-line event-line--text mb-3">
+                <v-icon size="16" class="mr-1">$noteTextOutline</v-icon>
+                <span class="event-text">{{ gathering.notes }}</span>
+              </div>
               <div v-if="gathering.games?.length" class="event-line mb-3">
-                <v-icon size="16" class="mr-1">mdi-rhombus-split</v-icon>
+                <v-icon size="16" class="mr-1">$rhombusSplit</v-icon>
                 <v-chip
                   v-for="game in gathering.games"
                   :key="game.id"
@@ -81,7 +89,7 @@
                 v-if="guestEntries(gathering).length"
                 class="event-line mb-3"
               >
-                <v-icon size="16" class="mr-1">mdi-account-group</v-icon>
+                <v-icon size="16" class="mr-1">$accountGroup</v-icon>
                 <v-chip
                   v-for="guest in guestEntries(gathering)"
                   :key="guest.uid"
@@ -97,7 +105,7 @@
                 </v-chip>
               </div>
               <div v-else class="event-line mb-3">
-                <v-icon size="16" class="mr-1">mdi-account-group</v-icon>No
+                <v-icon size="16" class="mr-1">$accountGroup</v-icon>No
                 guests invited yet
               </div>
               <div class="event-actions">
@@ -109,7 +117,7 @@
                   color="success"
                   @click.stop="setState(gathering, 'confirmed')"
                 >
-                  <v-icon start>mdi-check-circle</v-icon>Confirm
+                  <v-icon start>$checkCircle</v-icon>Confirm
                 </v-btn>
                 <v-menu v-if="gathering.state !== 'canceled'">
                   <template #activator="{ props }">
@@ -120,17 +128,17 @@
                       variant="text"
                       color="accent"
                     >
-                      <v-icon start>mdi-calendar-export</v-icon>Add to calendar
+                      <v-icon start>$calendarExport</v-icon>Add to calendar
                     </v-btn>
                   </template>
                   <v-list density="compact">
                     <v-list-item
-                      prepend-icon="mdi-google"
+                      prepend-icon="$google"
                       title="Google Calendar"
                       @click="addToGoogle(gathering)"
                     />
                     <v-list-item
-                      prepend-icon="mdi-calendar-arrow-right"
+                      prepend-icon="$calendarArrowRight"
                       title="Apple / Outlook (.ics)"
                       @click="addToApple(gathering)"
                     />
@@ -144,7 +152,7 @@
                   color="accent"
                   @click.stop="editGathering(gathering)"
                 >
-                  <v-icon start>mdi-pencil</v-icon>Edit
+                  <v-icon start>$pencil</v-icon>Edit
                 </v-btn>
                 <v-btn
                   v-if="gathering.state !== 'canceled'"
@@ -154,7 +162,7 @@
                   color="error"
                   @click.stop="setState(gathering, 'canceled')"
                 >
-                  <v-icon start>mdi-cancel</v-icon>Cancel
+                  <v-icon start>$cancel</v-icon>Cancel
                 </v-btn>
                 <v-btn
                   v-else
@@ -164,7 +172,7 @@
                   color="error"
                   @click.stop="deleteGathering(gathering)"
                 >
-                  <v-icon start>mdi-delete</v-icon>Delete
+                  <v-icon start>$delete</v-icon>Delete
                 </v-btn>
               </div>
             </div>
@@ -188,16 +196,24 @@
                   >{{ gathering.state }}</v-chip
                 >
                 <span class="event-line"
-                  ><v-icon size="16" class="mr-1">mdi-clock-outline</v-icon
+                  ><v-icon size="16" class="mr-1">$clockOutline</v-icon
                   >{{ formatDatetime(gathering.datetime) }}</span
                 >
               </div>
               <div class="event-line mb-3">
-                <v-icon size="16" class="mr-1">mdi-account</v-icon>Hosted by
+                <v-icon size="16" class="mr-1">$account</v-icon>Hosted by
                 {{ names[gathering.host] ?? '…' }}
               </div>
+              <div v-if="gathering.location" class="event-line event-line--text mb-3">
+                <v-icon size="16" class="mr-1">$mapMarkerOutline</v-icon>
+                <span class="event-text">{{ gathering.location }}</span>
+              </div>
+              <div v-if="gathering.notes" class="event-line event-line--text mb-3">
+                <v-icon size="16" class="mr-1">$noteTextOutline</v-icon>
+                <span class="event-text">{{ gathering.notes }}</span>
+              </div>
               <div v-if="gathering.games?.length" class="event-line mb-3">
-                <v-icon size="16" class="mr-1">mdi-rhombus-split</v-icon>
+                <v-icon size="16" class="mr-1">$rhombusSplit</v-icon>
                 <v-chip
                   v-for="game in gathering.games"
                   :key="game.id"
@@ -217,7 +233,7 @@
                   color="success"
                   @click.stop="respond(gathering, 'accepted')"
                 >
-                  <v-icon start>mdi-check-circle</v-icon>Accept
+                  <v-icon start>$checkCircle</v-icon>Accept
                 </v-btn>
                 <v-btn
                   density="compact"
@@ -228,7 +244,7 @@
                   color="error"
                   @click.stop="respond(gathering, 'declined')"
                 >
-                  <v-icon start>mdi-close-circle</v-icon>Decline
+                  <v-icon start>$closeCircle</v-icon>Decline
                 </v-btn>
                 <v-menu>
                   <template #activator="{ props }">
@@ -239,17 +255,17 @@
                       variant="text"
                       color="accent"
                     >
-                      <v-icon start>mdi-calendar-export</v-icon>Add to calendar
+                      <v-icon start>$calendarExport</v-icon>Add to calendar
                     </v-btn>
                   </template>
                   <v-list density="compact">
                     <v-list-item
-                      prepend-icon="mdi-google"
+                      prepend-icon="$google"
                       title="Google Calendar"
                       @click="addToGoogle(gathering)"
                     />
                     <v-list-item
-                      prepend-icon="mdi-calendar-arrow-right"
+                      prepend-icon="$calendarArrowRight"
                       title="Apple / Outlook (.ics)"
                       @click="addToApple(gathering)"
                     />
@@ -257,6 +273,87 @@
                 </v-menu>
               </div>
             </div>
+          </template>
+
+          <div
+            v-if="!hosting.length && !invited.length"
+            class="empty-desc text-center py-4"
+          >
+            No upcoming gatherings — host one or get invited.
+          </div>
+
+          <template v-if="past.length">
+            <v-divider class="my-4" />
+            <v-btn
+              variant="text"
+              color="accent"
+              size="small"
+              :aria-expanded="showPast ? 'true' : 'false'"
+              @click="showPast = !showPast"
+            >
+              <v-icon start>{{
+                showPast ? '$chevronUp' : '$chevronDown'
+              }}</v-icon>
+              Past gatherings ({{ past.length }})
+            </v-btn>
+            <template v-if="showPast">
+              <div
+                v-for="gathering in past"
+                :key="gathering.id"
+                class="event-item event-item--past pa-5 mb-4 mt-3"
+              >
+                <div class="d-flex align-center flex-wrap gap-3 mb-3">
+                  <v-chip
+                    :color="stateColor(gathering.state)"
+                    size="small"
+                    variant="tonal"
+                    class="text-capitalize"
+                    >{{ gathering.state }}</v-chip
+                  >
+                  <span class="event-line"
+                    ><v-icon size="16" class="mr-1">$clockOutline</v-icon
+                    >{{ formatDatetime(gathering.datetime) }}</span
+                  >
+                </div>
+                <div v-if="gathering.host !== uid" class="event-line mb-3">
+                  <v-icon size="16" class="mr-1">$account</v-icon>Hosted by
+                  {{ names[gathering.host] ?? '…' }}
+                </div>
+                <div v-if="gathering.games?.length" class="event-line mb-3">
+                  <v-icon size="16" class="mr-1">$rhombusSplit</v-icon>
+                  <v-chip
+                    v-for="game in gathering.games"
+                    :key="game.id"
+                    size="x-small"
+                    variant="outlined"
+                    class="mr-1"
+                    >{{ game.name }}</v-chip
+                  >
+                </div>
+                <div class="event-actions">
+                  <v-btn
+                    v-if="gathering.host === uid"
+                    density="compact"
+                    size="small"
+                    variant="text"
+                    color="error"
+                    @click.stop="deleteGathering(gathering)"
+                  >
+                    <v-icon start>$delete</v-icon>Delete
+                  </v-btn>
+                  <v-btn
+                    v-else
+                    density="compact"
+                    size="small"
+                    variant="text"
+                    color="error"
+                    @click.stop="removeFromMyCalendar(gathering)"
+                  >
+                    <v-icon start>$delete</v-icon>Remove
+                  </v-btn>
+                </div>
+              </div>
+            </template>
           </template>
         </v-card-text>
       </v-card>
@@ -415,9 +512,15 @@ const gatherings = computed<GatheringWithId[]>(() =>
     ...gathering,
   }))
 )
-const sections = computed(() => splitGatherings(gatherings.value, uid))
+// The past/upcoming cutoff is fixed at page load; fine for a page visit.
+const loadedAt = new Date()
+const sections = computed(() =>
+  splitGatherings(gatherings.value, uid, loadedAt)
+)
 const hosting = computed(() => sections.value.hosting)
 const invited = computed(() => sections.value.invited)
+const past = computed(() => sections.value.past)
+const showPast = ref(false)
 
 watch(sections, (value) => {
   void resolveNames(value)
@@ -541,6 +644,20 @@ async function deleteGathering(gathering: GatheringWithId) {
 function editGathering(gathering: GatheringWithId) {
   router.push({ path: routes.newGathering, query: { id: gathering.id } })
 }
+
+// Guests can always delete their own index entry (the same rule that backs
+// dangling-pointer cleanup); the index listener then drops the gathering.
+async function removeFromMyCalendar(gathering: GatheringWithId) {
+  try {
+    await remove(dbRef(db, `userGatherings/${uid}/${gathering.id}`))
+    logEvent('gathering_removed_from_calendar')
+  } catch (err) {
+    snackbar.value?.showSnackbarWithMessage(
+      helpers.handleError(err).message,
+      true
+    )
+  }
+}
 </script>
 
 <style scoped>
@@ -560,6 +677,15 @@ function editGathering(gathering: GatheringWithId) {
     0 4px 16px rgba(0, 0, 0, 0.35),
     0 1px 4px rgba(200, 134, 10, 0.1);
 }
+/* Past gatherings are history: recede the card chrome (bg/border) only —
+   dimming the content via opacity drops error/success chips below AA contrast */
+.event-item--past,
+.event-item--past:hover {
+  background: rgba(200, 134, 10, 0.02);
+  border-color: rgba(200, 134, 10, 0.08);
+  transform: none;
+  box-shadow: none;
+}
 .event-line {
   font-size: 0.98rem;
   line-height: 1.5;
@@ -568,6 +694,20 @@ function editGathering(gathering: GatheringWithId) {
   align-items: center;
   flex-wrap: wrap;
   gap: 6px;
+}
+/* Free-text lines (location, notes): keep the icon and text side by side and
+   let long text word-wrap with a hanging indent instead of orphaning the icon */
+.event-line--text {
+  flex-wrap: nowrap;
+  align-items: flex-start;
+}
+.event-line--text .v-icon {
+  margin-top: 3px; /* optically centers the 16px icon on the first text line */
+}
+.event-line--text .event-text {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 /* Slightly larger, more legible chips inside the event cards */
 .event-item :deep(.v-chip) {

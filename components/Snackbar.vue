@@ -7,7 +7,7 @@
     role="alert"
   >
     <div class="d-flex align-center gap-2">
-      <v-icon>{{ isError ? 'mdi-alert-circle' : 'mdi-check-circle' }}</v-icon>
+      <v-icon>{{ isError ? '$alertCircle' : '$checkCircle' }}</v-icon>
       {{ snackbarText }}
     </div>
     <template #actions>

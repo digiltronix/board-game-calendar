@@ -5,7 +5,7 @@
         <v-card-title class="page-card-title">
           <div class="d-flex align-center">
             <v-icon color="primary" class="mr-3 flex-shrink-0"
-              >mdi-shield-lock-outline</v-icon
+              >$shieldLockOutline</v-icon
             >
             <h1 class="page-title">Privacy policy</h1>
           </div>

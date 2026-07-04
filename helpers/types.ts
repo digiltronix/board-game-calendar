@@ -63,6 +63,10 @@ export type Gathering = {
   initiator: string // uid
   host: string // uid
   maxGuests: number
+  // Optional free-text fields; written as null (RTDB delete) when cleared so
+  // an edit-in-place update() actually removes the old value
+  location?: string | null // where the gathering happens, shared with guests
+  notes?: string | null // host notes ("bring snacks", parking info…)
   guests?: Record<string, GuestResponse> // keyed by guest uid
   games?: GatheringGame[]
   emailInvites?: Record<string, string> // pushId → email address (non-user invitees)

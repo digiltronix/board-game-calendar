@@ -42,7 +42,7 @@
         title="Sign out"
         @click.stop="onSignoutClicked"
       >
-        <v-icon>mdi-logout</v-icon>
+        <v-icon>$logout</v-icon>
       </v-btn>
       <v-btn
         v-if="showSignOut"
@@ -52,7 +52,7 @@
         size="small"
         @click.stop="onSignoutClicked"
       >
-        <v-icon start>mdi-logout</v-icon>Sign out
+        <v-icon start>$logout</v-icon>Sign out
       </v-btn>
     </v-app-bar>
 
@@ -98,43 +98,43 @@ const drawer = ref(false)
 
 const items = [
   {
-    icon: 'mdi-castle',
+    icon: '$castle',
     title: 'Welcome',
     to: routes.index,
     type: PageType.AlwaysShow,
   },
   {
-    icon: 'mdi-account-key',
+    icon: '$accountKey',
     title: 'Sign in',
     to: routes.signIn,
     type: PageType.BeforeAuth,
   },
   {
-    icon: 'mdi-calendar-month',
+    icon: '$calendarMonth',
     title: 'Calendar',
     to: routes.calendar,
     type: PageType.NeedsAuth,
   },
   {
-    icon: 'mdi-dice-multiple',
+    icon: '$diceMultiple',
     title: 'New gathering',
     to: routes.newGathering,
     type: PageType.NeedsAuth,
   },
   {
-    icon: 'mdi-cards-outline',
+    icon: '$cardsOutline',
     title: 'Game collection',
     to: routes.gameCollection,
     type: PageType.NeedsAuth,
   },
   {
-    icon: 'mdi-account-group',
+    icon: '$accountGroup',
     title: 'Friends',
     to: routes.friends,
     type: PageType.NeedsAuth,
   },
   {
-    icon: 'mdi-account',
+    icon: '$account',
     title: 'Profile',
     to: routes.profile,
     type: PageType.NeedsAuth,

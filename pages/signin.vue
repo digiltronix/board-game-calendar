@@ -15,7 +15,7 @@
             :loading="isLoading"
             @click="signInWithGoogle"
           >
-            <v-icon start>mdi-google</v-icon>
+            <v-icon start>$google</v-icon>
             Continue with Google
           </v-btn>
           <v-btn
@@ -25,7 +25,7 @@
             :loading="isLoading"
             @click="signInWithFacebook"
           >
-            <v-icon start>mdi-facebook</v-icon>
+            <v-icon start>$facebook</v-icon>
             Continue with Facebook
           </v-btn>
           <p class="signin-terms">

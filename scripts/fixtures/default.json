@@ -118,10 +118,13 @@
   "gatherings": {
     "gathering-001": {
       "state": "pending",
-      "datetime": "2026-06-25T18:00:00.000Z",
+      "datetime": "2027-06-25T18:00:00.000Z",
+      "timezone": "America/Chicago",
       "initiator": "screenshot-uid-1",
       "host": "screenshot-uid-1",
       "maxGuests": 4,
+      "location": "123 Game Night Lane, Board City",
+      "notes": "Bring snacks — we start on time!",
       "guests": {
         "screenshot-uid-2": "accepted",
         "screenshot-uid-3": "invited"
@@ -133,7 +136,37 @@
     },
     "gathering-002": {
       "state": "confirmed",
-      "datetime": "2026-06-28T20:00:00.000Z",
+      "datetime": "2027-06-28T20:00:00.000Z",
+      "timezone": "America/Chicago",
+      "initiator": "screenshot-uid-2",
+      "host": "screenshot-uid-2",
+      "maxGuests": 6,
+      "location": "Sam's place — 42 Meeple Ave",
+      "guests": {
+        "screenshot-uid-1": "accepted"
+      },
+      "games": [
+        { "id": "167791", "name": "Terraforming Mars" }
+      ]
+    },
+    "gathering-003": {
+      "state": "confirmed",
+      "datetime": "2026-05-30T18:00:00.000Z",
+      "timezone": "America/Chicago",
+      "initiator": "screenshot-uid-1",
+      "host": "screenshot-uid-1",
+      "maxGuests": 4,
+      "guests": {
+        "screenshot-uid-2": "accepted"
+      },
+      "games": [
+        { "id": "316554", "name": "Ark Nova" }
+      ]
+    },
+    "gathering-004": {
+      "state": "confirmed",
+      "datetime": "2026-05-15T20:00:00.000Z",
+      "timezone": "America/Chicago",
       "initiator": "screenshot-uid-2",
       "host": "screenshot-uid-2",
       "maxGuests": 6,
@@ -141,14 +174,16 @@
         "screenshot-uid-1": "accepted"
       },
       "games": [
-        { "id": "167791", "name": "Terraforming Mars" }
+        { "id": "266192", "name": "Wingspan" }
       ]
     }
   },
   "userGatherings": {
     "screenshot-uid-1": {
       "gathering-001": true,
-      "gathering-002": true
+      "gathering-002": true,
+      "gathering-003": true,
+      "gathering-004": true
     }
   },
   "friendRequests": {

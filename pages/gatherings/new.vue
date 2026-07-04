@@ -4,7 +4,7 @@
       <v-card>
         <v-card-title class="d-flex align-center pa-6">
           <v-icon color="primary" class="mr-3">{{
-            editId ? 'mdi-calendar-edit' : 'mdi-calendar-plus'
+            editId ? '$calendarEdit' : '$calendarPlus'
           }}</v-icon>
           <h1 class="page-title">
             {{ editId ? 'Edit gathering' : 'New gathering' }}
@@ -28,7 +28,7 @@
                   type="date"
                   label="Date"
                   :rules="[validation.isRequired]"
-                  prepend-inner-icon="mdi-calendar"
+                  prepend-inner-icon="$calendar"
                 />
               </v-col>
               <v-col cols="12" sm="6">
@@ -37,17 +37,39 @@
                   type="time"
                   label="Start time"
                   :rules="[validation.isRequired]"
-                  prepend-inner-icon="mdi-clock-outline"
+                  prepend-inner-icon="$clockOutline"
                 />
               </v-col>
             </v-row>
+            <div class="section-label mb-2">Where</div>
+            <v-text-field
+              v-model="location"
+              label="Location"
+              placeholder="123 Oak St, or a game café"
+              hint="Shared with your guests and added to calendar invites"
+              persistent-hint
+              :rules="[validation.isLocation]"
+              prepend-inner-icon="$mapMarkerOutline"
+              class="mb-2"
+            />
             <div class="section-label mb-2">Details</div>
             <v-text-field
               v-model="maxGuests"
               type="number"
               label="Max guests"
               :rules="[validation.isMaxGuests]"
-              prepend-inner-icon="mdi-account-multiple-outline"
+              prepend-inner-icon="$accountMultipleOutline"
+              class="mb-2"
+            />
+            <v-textarea
+              v-model="notes"
+              label="Notes for guests"
+              placeholder="Bring snacks, park on the street…"
+              rows="2"
+              auto-grow
+              counter="500"
+              :rules="[validation.isNotes]"
+              prepend-inner-icon="$noteTextOutline"
               class="mb-2"
             />
             <div class="section-label mb-2">Guests</div>
@@ -58,7 +80,7 @@
               chips
               closable-chips
               label="Invite friends"
-              prepend-inner-icon="mdi-account-group"
+              prepend-inner-icon="$accountGroup"
               :hint="
                 friendItems.length
                   ? ''
@@ -73,7 +95,7 @@
                 v-model="emailInput"
                 type="email"
                 label="Invite by email address"
-                prepend-inner-icon="mdi-email-outline"
+                prepend-inner-icon="$emailOutline"
                 hint="Invite someone who doesn't have an account yet"
                 persistent-hint
                 @keydown.enter.prevent="addEmailInvite"
@@ -97,7 +119,7 @@
                 v-for="email in emailInviteList"
                 :key="email"
                 closable
-                prepend-icon="mdi-email-outline"
+                prepend-icon="$emailOutline"
                 @click:close="removeEmailInvite(email)"
               >
                 {{ email }}
@@ -112,7 +134,7 @@
               chips
               closable-chips
               label="Games to play"
-              prepend-inner-icon="mdi-rhombus-split"
+              prepend-inner-icon="$rhombusSplit"
               :hint="
                 gameItems.length
                   ? ''
@@ -128,7 +150,7 @@
               size="large"
               :loading="saving"
             >
-              <v-icon start>mdi-calendar-check</v-icon
+              <v-icon start>$calendarCheck</v-icon
               >{{ editId ? 'Save changes' : 'Create gathering' }}
             </v-btn>
           </v-form>
@@ -167,6 +189,8 @@ const saving = ref(false)
 
 const date = ref('')
 const time = ref('')
+const location = ref('')
+const notes = ref('')
 const maxGuests = ref<number | string>(0)
 const selectedGuests = ref<string[]>([])
 const selectedGameIds = ref<string[]>([])
@@ -216,6 +240,7 @@ let existingInitiator = ''
 
 useHead({ title: editId ? 'Edit gathering' : 'New gathering' })
 
+// Length limits mirror the .validate rules in database.rules.json
 const validation = {
   isRequired: (v: string) => !!v || 'Required',
   isMaxGuests: (v: number | string) =>
@@ -223,6 +248,10 @@ const validation = {
     v === '' ||
     (Number.isInteger(Number(v)) && Number(v) >= 0 && Number(v) <= 1000) ||
     'Must be a whole number between 0 and 1000',
+  isLocation: (v: string) =>
+    !v || v.length <= 200 || 'Must be 200 characters or fewer',
+  isNotes: (v: string) =>
+    !v || v.length <= 500 || 'Must be 500 characters or fewer',
 }
 
 onMounted(async () => {
@@ -285,6 +314,8 @@ onMounted(async () => {
       const pad = (n: number) => String(n).padStart(2, '0')
       date.value = `${dt.getFullYear()}-${pad(dt.getMonth() + 1)}-${pad(dt.getDate())}`
       time.value = `${pad(dt.getHours())}:${pad(dt.getMinutes())}`
+      location.value = gathering.location ?? ''
+      notes.value = gathering.notes ?? ''
       maxGuests.value = gathering.maxGuests
       selectedGuests.value = Object.keys(existingGuests)
       selectedGameIds.value = (gathering.games ?? []).map((game) => game.id)
@@ -347,6 +378,10 @@ async function createGathering() {
       initiator: editId ? existingInitiator : uid,
       host: uid,
       maxGuests: Number(maxGuests.value || 0),
+      // null (not undefined) so clearing the field on edit deletes the old
+      // value — update() ignores absent keys but applies nulls as deletes
+      location: location.value.trim() || null,
+      notes: notes.value.trim() || null,
       // existing guests keep their response when editing; new ones start as invited
       guests: Object.fromEntries(
         selectedGuests.value.map((guestId) => [

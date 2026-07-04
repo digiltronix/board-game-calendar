@@ -152,6 +152,12 @@
         "maxGuests": {
           ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 1000"
         },
+        "location": {
+          ".validate": "newData.isString() && newData.val().length <= 200"
+        },
+        "notes": {
+          ".validate": "newData.isString() && newData.val().length <= 500"
+        },
         "guests": {
           "$guestUid": {
             ".write": "auth != null && $guestUid === auth.uid && data.exists()",

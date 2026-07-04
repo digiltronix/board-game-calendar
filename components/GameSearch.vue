@@ -11,7 +11,7 @@
       label="Board game search"
       placeholder="Start typing to search"
       :hint="`Type at least ${constants.MinSearchLength} characters`"
-      prepend-icon="mdi-database-search"
+      prepend-icon="$databaseSearch"
       return-object
       @blur="displayEntries"
       @keyup.enter="searchEnterPressed"
@@ -26,7 +26,7 @@
               :src="item.thumbnail"
               :alt="item.name"
             />
-            <v-icon v-else size="32">mdi-gamepad-variant-outline</v-icon>
+            <v-icon v-else size="32">$gamepadVariantOutline</v-icon>
           </v-avatar>
         </template>
 
@@ -45,7 +45,7 @@
             :title="item.incollection ? 'Already in collection' : 'Add to collection'"
             @click.stop="addToCollection(item)"
           >
-            <v-icon>mdi-plus-circle</v-icon>
+            <v-icon>$plusCircle</v-icon>
           </v-btn>
           <v-btn
             icon
@@ -58,7 +58,7 @@
             aria-label="View on BGG"
             title="View on BGG"
           >
-            <v-icon>mdi-open-in-new</v-icon>
+            <v-icon>$openInNew</v-icon>
           </v-btn>
         </div>
       </v-list-item>
