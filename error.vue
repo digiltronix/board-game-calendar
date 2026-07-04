@@ -6,8 +6,8 @@
           <v-icon size="80" color="primary" class="mb-4" style="opacity: 0.4">
             {{
               error.statusCode === 404
-                ? 'mdi-map-marker-question'
-                : 'mdi-alert-circle-outline'
+                ? '$mapMarkerQuestion'
+                : '$alertCircleOutline'
             }}
           </v-icon>
           <h1 class="error-code mb-2">{{ error.statusCode || 'Error' }}</h1>
@@ -19,7 +19,7 @@
             }}
           </p>
           <v-btn color="primary" variant="elevated" to="/">
-            <v-icon start>mdi-home</v-icon>Go home
+            <v-icon start>$home</v-icon>Go home
           </v-btn>
         </v-col>
       </v-row>

@@ -63,10 +63,10 @@ export function responseColor(response: GuestResponse): string {
 export function responseIcon(response: GuestResponse): string {
   return (
     {
-      invited: 'mdi-help-circle-outline',
-      accepted: 'mdi-check-circle-outline',
-      declined: 'mdi-close-circle-outline',
-    }[response] ?? 'mdi-help-circle-outline'
+      invited: '$helpCircleOutline',
+      accepted: '$checkCircleOutline',
+      declined: '$closeCircleOutline',
+    }[response] ?? '$helpCircleOutline'
   )
 }
 

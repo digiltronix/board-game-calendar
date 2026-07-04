@@ -4,7 +4,7 @@
       <v-card>
         <v-card-title class="d-flex align-center pa-6">
           <v-icon color="primary" class="mr-3">{{
-            editId ? 'mdi-calendar-edit' : 'mdi-calendar-plus'
+            editId ? '$calendarEdit' : '$calendarPlus'
           }}</v-icon>
           <h1 class="page-title">
             {{ editId ? 'Edit gathering' : 'New gathering' }}
@@ -28,7 +28,7 @@
                   type="date"
                   label="Date"
                   :rules="[validation.isRequired]"
-                  prepend-inner-icon="mdi-calendar"
+                  prepend-inner-icon="$calendar"
                 />
               </v-col>
               <v-col cols="12" sm="6">
@@ -37,7 +37,7 @@
                   type="time"
                   label="Start time"
                   :rules="[validation.isRequired]"
-                  prepend-inner-icon="mdi-clock-outline"
+                  prepend-inner-icon="$clockOutline"
                 />
               </v-col>
             </v-row>
@@ -49,7 +49,7 @@
               hint="Shared with your guests and added to calendar invites"
               persistent-hint
               :rules="[validation.isLocation]"
-              prepend-inner-icon="mdi-map-marker-outline"
+              prepend-inner-icon="$mapMarkerOutline"
               class="mb-2"
             />
             <div class="section-label mb-2">Details</div>
@@ -58,7 +58,7 @@
               type="number"
               label="Max guests"
               :rules="[validation.isMaxGuests]"
-              prepend-inner-icon="mdi-account-multiple-outline"
+              prepend-inner-icon="$accountMultipleOutline"
               class="mb-2"
             />
             <v-textarea
@@ -69,7 +69,7 @@
               auto-grow
               counter="500"
               :rules="[validation.isNotes]"
-              prepend-inner-icon="mdi-note-text-outline"
+              prepend-inner-icon="$noteTextOutline"
               class="mb-2"
             />
             <div class="section-label mb-2">Guests</div>
@@ -80,7 +80,7 @@
               chips
               closable-chips
               label="Invite friends"
-              prepend-inner-icon="mdi-account-group"
+              prepend-inner-icon="$accountGroup"
               :hint="
                 friendItems.length
                   ? ''
@@ -95,7 +95,7 @@
                 v-model="emailInput"
                 type="email"
                 label="Invite by email address"
-                prepend-inner-icon="mdi-email-outline"
+                prepend-inner-icon="$emailOutline"
                 hint="Invite someone who doesn't have an account yet"
                 persistent-hint
                 @keydown.enter.prevent="addEmailInvite"
@@ -119,7 +119,7 @@
                 v-for="email in emailInviteList"
                 :key="email"
                 closable
-                prepend-icon="mdi-email-outline"
+                prepend-icon="$emailOutline"
                 @click:close="removeEmailInvite(email)"
               >
                 {{ email }}
@@ -134,7 +134,7 @@
               chips
               closable-chips
               label="Games to play"
-              prepend-inner-icon="mdi-rhombus-split"
+              prepend-inner-icon="$rhombusSplit"
               :hint="
                 gameItems.length
                   ? ''
@@ -150,7 +150,7 @@
               size="large"
               :loading="saving"
             >
-              <v-icon start>mdi-calendar-check</v-icon
+              <v-icon start>$calendarCheck</v-icon
               >{{ editId ? 'Save changes' : 'Create gathering' }}
             </v-btn>
           </v-form>

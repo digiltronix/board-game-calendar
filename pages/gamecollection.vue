@@ -5,7 +5,7 @@
         <v-card-title class="page-card-title">
           <div class="d-flex align-center">
             <v-icon color="primary" class="mr-3 flex-shrink-0"
-              >mdi-rhombus-split</v-icon
+              >$rhombusSplit</v-icon
             >
             <h1 class="page-title">{{ pageTitle }}</h1>
           </div>
@@ -17,7 +17,7 @@
                 color="primary"
                 size="small"
               >
-                <v-icon start>mdi-arrow-left-circle</v-icon>Back
+                <v-icon start>$arrowLeftCircle</v-icon>Back
               </v-btn>
             </template>
             <template v-else-if="activeArea === 'collection'">
@@ -27,7 +27,7 @@
                 size="small"
                 @click.stop="activeArea = 'addGame'"
               >
-                <v-icon start>mdi-plus-circle</v-icon>Add game
+                <v-icon start>$plusCircle</v-icon>Add game
               </v-btn>
               <v-btn
                 variant="elevated"
@@ -35,7 +35,7 @@
                 size="small"
                 @click.stop="openRateArea"
               >
-                <v-icon start>mdi-star-outline</v-icon>Rate
+                <v-icon start>$starOutline</v-icon>Rate
               </v-btn>
             </template>
             <v-btn
@@ -45,7 +45,7 @@
               size="small"
               @click.stop="activeArea = 'collection'"
             >
-              <v-icon start>mdi-arrow-left-circle</v-icon>Back
+              <v-icon start>$arrowLeftCircle</v-icon>Back
             </v-btn>
           </div>
         </v-card-title>
@@ -67,7 +67,7 @@
                 color="primary"
                 class="mb-4"
                 style="opacity: 0.3"
-                >mdi-cards-outline</v-icon
+                >$cardsOutline</v-icon
               >
               <div class="empty-title">No games yet</div>
               <div v-if="!isFriendView" class="empty-desc">
@@ -83,7 +83,7 @@
                 class="mt-4"
                 @click.stop="activeArea = 'addGame'"
               >
-                <v-icon start>mdi-plus-circle</v-icon>Add games
+                <v-icon start>$plusCircle</v-icon>Add games
               </v-btn>
             </div>
             <div v-else>
@@ -91,7 +91,7 @@
                 <v-text-field
                   v-model="filterGames"
                   label="Filter games"
-                  prepend-inner-icon="mdi-magnify"
+                  prepend-inner-icon="$magnify"
                   clearable
                   hide-details
                   class="flex-grow-1"
@@ -169,7 +169,7 @@
                           :alt="entry.game.name"
                         />
                         <v-icon v-else size="32"
-                          >mdi-gamepad-variant-outline</v-icon
+                          >$gamepadVariantOutline</v-icon
                         >
                       </v-avatar>
                     </template>
@@ -221,7 +221,7 @@
                         aria-label="Open on BGG"
                         title="Open on BGG"
                       >
-                        <v-icon>mdi-open-in-new</v-icon>
+                        <v-icon>$openInNew</v-icon>
                       </v-btn>
                       <v-btn
                         v-if="!isFriendView"
@@ -243,7 +243,7 @@
                         "
                         @click.stop="toggleExpanded(entry.id)"
                       >
-                        <v-icon>mdi-note-text-outline</v-icon>
+                        <v-icon>$noteTextOutline</v-icon>
                       </v-btn>
                       <v-btn
                         v-if="!isFriendView"
@@ -255,7 +255,7 @@
                         title="Remove from collection"
                         @click.stop="removeGameFromCollection(entry.id)"
                       >
-                        <v-icon>mdi-delete-outline</v-icon>
+                        <v-icon>$deleteOutline</v-icon>
                       </v-btn>
                     </div>
                     <v-textarea
@@ -319,7 +319,7 @@
                         "
                         @click.stop="toggleExpanded(entry.gameId)"
                       >
-                        <v-icon>mdi-note-text-outline</v-icon>
+                        <v-icon>$noteTextOutline</v-icon>
                       </v-btn>
                       <v-btn
                         icon
@@ -330,7 +330,7 @@
                         title="Add to collection"
                         @click.stop="addOpinionGameToCollection(entry)"
                       >
-                        <v-icon>mdi-plus-circle</v-icon>
+                        <v-icon>$plusCircle</v-icon>
                       </v-btn>
                       <v-btn
                         icon
@@ -341,7 +341,7 @@
                         title="Delete rating"
                         @click.stop="deleteOpinion(entry.gameId)"
                       >
-                        <v-icon>mdi-delete-outline</v-icon>
+                        <v-icon>$deleteOutline</v-icon>
                       </v-btn>
                     </div>
                   </v-list-item>
@@ -391,7 +391,7 @@
               label="Board game search"
               placeholder="Start typing to search"
               :hint="`Type at least ${constants.MinSearchLength} characters`"
-              prepend-icon="mdi-database-search"
+              prepend-icon="$databaseSearch"
               return-object
               class="mb-4"
               @click="opinionSelectedItem = null"
@@ -408,7 +408,7 @@
                   variant="text"
                   @click.stop="opinionSelectedItem = null"
                 >
-                  <v-icon>mdi-close</v-icon>
+                  <v-icon>$close</v-icon>
                 </v-btn>
               </div>
               <v-rating
@@ -450,7 +450,7 @@
                   size="small"
                   @click.stop="addSelectedOpinionGameToCollection"
                 >
-                  <v-icon start>mdi-plus-circle</v-icon>Add to Collection
+                  <v-icon start>$plusCircle</v-icon>Add to Collection
                 </v-btn>
               </div>
             </v-card>

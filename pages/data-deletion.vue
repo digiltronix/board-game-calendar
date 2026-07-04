@@ -5,7 +5,7 @@
         <v-card-title class="page-card-title">
           <div class="d-flex align-center">
             <v-icon color="primary" class="mr-3 flex-shrink-0"
-              >mdi-account-remove-outline</v-icon
+              >$accountRemoveOutline</v-icon
             >
             <h1 class="page-title">Data deletion</h1>
           </div>

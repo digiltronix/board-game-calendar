@@ -3,7 +3,7 @@
     <v-col cols="12" sm="11" md="9" lg="6">
       <v-card>
         <v-card-title class="d-flex align-center pa-6">
-          <v-icon color="primary" class="mr-3">mdi-account-circle</v-icon>
+          <v-icon color="primary" class="mr-3">$accountCircle</v-icon>
           <h1 class="page-title">Profile</h1>
           <v-spacer />
           <v-btn
@@ -13,7 +13,7 @@
             size="small"
             @click.stop="editable = true"
           >
-            <v-icon start>mdi-pencil</v-icon>Edit
+            <v-icon start>$pencil</v-icon>Edit
           </v-btn>
           <v-btn
             v-if="editable"
@@ -22,7 +22,7 @@
             size="small"
             @click.stop="updateProfile"
           >
-            <v-icon start>mdi-content-save</v-icon>Save
+            <v-icon start>$contentSave</v-icon>Save
           </v-btn>
         </v-card-title>
         <v-divider />
@@ -39,14 +39,14 @@
               v-model="profile.name"
               :label="labels.name"
               :rules="[validation.isRequired]"
-              prepend-inner-icon="mdi-account-outline"
+              prepend-inner-icon="$accountOutline"
               class="mb-1"
             />
             <v-text-field
               v-model="profile.phoneNumber"
               :label="labels.phoneNumber"
               :rules="[validation.isPhone]"
-              prepend-inner-icon="mdi-phone-outline"
+              prepend-inner-icon="$phoneOutline"
               class="mb-1"
             />
             <v-text-field
@@ -55,13 +55,13 @@
               disabled
               hint="Email comes from your sign-in account"
               persistent-hint
-              prepend-inner-icon="mdi-email-outline"
+              prepend-inner-icon="$emailOutline"
               class="mb-1"
             />
             <v-textarea
               v-model="profile.address"
               :label="labels.address"
-              prepend-inner-icon="mdi-map-marker-outline"
+              prepend-inner-icon="$mapMarkerOutline"
               rows="3"
             />
             <v-text-field
@@ -69,7 +69,7 @@
               type="number"
               :label="labels.maxPeople"
               :rules="[validation.isMaxPeople]"
-              prepend-inner-icon="mdi-account-multiple-outline"
+              prepend-inner-icon="$accountMultipleOutline"
             />
           </v-form>
         </v-card-text>
@@ -151,17 +151,17 @@ const profile = reactive<UserProfile>({
 })
 
 const profileFields = computed(() => [
-  { icon: 'mdi-account', label: labels.name, value: profile.name },
-  { icon: 'mdi-phone', label: labels.phoneNumber, value: profile.phoneNumber },
-  { icon: 'mdi-email', label: labels.email, value: authEmail.value ?? '' },
+  { icon: '$account', label: labels.name, value: profile.name },
+  { icon: '$phone', label: labels.phoneNumber, value: profile.phoneNumber },
+  { icon: '$email', label: labels.email, value: authEmail.value ?? '' },
   {
-    icon: 'mdi-map-marker',
+    icon: '$mapMarker',
     label: labels.address,
     value: profile.address,
     isAddress: true,
   },
   {
-    icon: 'mdi-account-multiple-check',
+    icon: '$accountMultipleCheck',
     label: labels.maxPeople,
     value: profile.maxPeople != null ? String(profile.maxPeople) : '',
   },

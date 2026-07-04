@@ -3,7 +3,7 @@
     <v-col cols="12" sm="11" md="9" lg="6">
       <v-card>
         <v-card-title class="d-flex align-center pa-6">
-          <v-icon color="primary" class="mr-3">mdi-account-group</v-icon>
+          <v-icon color="primary" class="mr-3">$accountGroup</v-icon>
           <h1 class="page-title">Friends</h1>
           <v-spacer />
           <v-btn
@@ -13,7 +13,7 @@
             @click.stop="toggleAddArea"
           >
             <v-icon start>{{
-              friendsAreaOpen ? 'mdi-plus-circle' : 'mdi-arrow-left-circle'
+              friendsAreaOpen ? '$plusCircle' : '$arrowLeftCircle'
             }}</v-icon>
             {{ friendsAreaOpen ? 'Add' : 'Back' }}
           </v-btn>
@@ -59,7 +59,7 @@
                     color="success"
                     @click.stop="handleAccept(request.userId)"
                   >
-                    <v-icon start>mdi-check-circle</v-icon>Accept
+                    <v-icon start>$checkCircle</v-icon>Accept
                   </v-btn>
                   <v-btn
                     density="compact"
@@ -68,7 +68,7 @@
                     color="error"
                     @click.stop="handleDecline(request.userId)"
                   >
-                    <v-icon start>mdi-close-circle</v-icon>Decline
+                    <v-icon start>$closeCircle</v-icon>Decline
                   </v-btn>
                 </div>
               </v-list-item>
@@ -80,7 +80,7 @@
             class="empty-state"
           >
             <v-icon size="64" color="primary" class="mb-4" style="opacity: 0.3"
-              >mdi-account-multiple-plus-outline</v-icon
+              >$accountMultiplePlusOutline</v-icon
             >
             <div class="empty-title">No friends yet</div>
             <div class="empty-desc">
@@ -92,7 +92,7 @@
               class="mt-4"
               @click.stop="toggleAddArea"
             >
-              <v-icon start>mdi-plus-circle</v-icon>Find friends
+              <v-icon start>$plusCircle</v-icon>Find friends
             </v-btn>
           </div>
           <template v-else-if="friends.length">
@@ -126,7 +126,7 @@
                     color="accent"
                     :to="`${routes.gameCollection}?uid=${friend.userId}`"
                   >
-                    <v-icon start>mdi-cards-outline</v-icon>Collection
+                    <v-icon start>$cardsOutline</v-icon>Collection
                   </v-btn>
                   <v-btn
                     density="compact"
@@ -135,7 +135,7 @@
                     color="error"
                     @click.stop="handleRemove(friend.userId)"
                   >
-                    <v-icon start>mdi-minus-circle</v-icon>Remove
+                    <v-icon start>$minusCircle</v-icon>Remove
                   </v-btn>
                 </div>
               </v-list-item>
@@ -149,7 +149,7 @@
             placeholder="Search by name, email, or phone number"
             :hint="`Search by name, email, or phone number (min ${constants.MinSearchLength} chars)`"
             persistent-hint
-            prepend-inner-icon="mdi-magnify"
+            prepend-inner-icon="$magnify"
             :loading="isSearching"
             clearable
             class="mb-4"
@@ -183,7 +183,7 @@
                   color="success"
                   variant="tonal"
                 >
-                  <v-icon start>mdi-check-circle</v-icon>Friends
+                  <v-icon start>$checkCircle</v-icon>Friends
                 </v-chip>
                 <v-chip
                   v-else-if="person.requestSent"
@@ -191,7 +191,7 @@
                   color="primary"
                   variant="tonal"
                 >
-                  <v-icon start>mdi-clock-outline</v-icon>Request sent
+                  <v-icon start>$clockOutline</v-icon>Request sent
                 </v-chip>
                 <v-btn
                   v-else
@@ -200,7 +200,7 @@
                   color="accent"
                   @click.stop="handleSendRequest(id, person)"
                 >
-                  <v-icon start>mdi-plus-circle</v-icon>Add
+                  <v-icon start>$plusCircle</v-icon>Add
                 </v-btn>
               </div>
             </v-list-item>

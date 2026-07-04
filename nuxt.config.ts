@@ -1,4 +1,5 @@
 import { fileURLToPath } from 'node:url'
+import { mdiSvgAliases } from './vuetify.icons'
 
 const SCREENSHOT_MODE = process.env.NUXT_PUBLIC_SCREENSHOT_MODE === 'true'
 
@@ -71,6 +72,13 @@ export default defineNuxtConfig({
       styles: { configFile: './assets/variables.scss' },
     },
     vuetifyOptions: {
+      // Tree-shaken SVG icons: only the aliases registered in vuetify.icons.ts
+      // ship in the bundle. Reference icons as $aliasName (never mdi-* font
+      // classes — the icon font is not installed).
+      icons: {
+        defaultSet: 'mdi-svg',
+        svg: { mdi: { aliases: mdiSvgAliases } },
+      },
       theme: {
         defaultTheme: 'dark',
         themes: {

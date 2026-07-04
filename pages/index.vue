@@ -30,7 +30,7 @@
               elevation="8"
             >
               Get started
-              <v-icon end>mdi-arrow-right</v-icon>
+              <v-icon end>$arrowRight</v-icon>
             </v-btn>
           </v-card-text>
 
@@ -70,17 +70,17 @@ useHead({ title: 'Welcome' })
 
 const features = [
   {
-    icon: 'mdi-cards-outline',
+    icon: '$cardsOutline',
     title: 'Your collection',
     desc: 'Catalog your board games with ratings and notes.',
   },
   {
-    icon: 'mdi-account-group',
+    icon: '$accountGroup',
     title: 'Find friends',
     desc: 'Connect with fellow board game enthusiasts.',
   },
   {
-    icon: 'mdi-dice-multiple',
+    icon: '$diceMultiple',
     title: 'Schedule nights',
     desc: 'Plan gatherings around the games you love.',
   },

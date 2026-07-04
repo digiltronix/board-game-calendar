@@ -27,7 +27,7 @@ Pre-commit hooks run `yarn lint` via husky + lint-staged. Commits must follow Co
 
 ## Stack
 
-Nuxt 4.4 + Vue 3.5 + Vuetify 4.1 (MD3, dark theme) + Pinia 3 + Firebase RTDB (not Firestore) + TypeScript strict. ESLint 10 flat config via `@nuxt/eslint` + Prettier. Vitest 4 + `@nuxt/test-utils` (jsdom). MDI icons are self-hosted via the `@mdi/font` devDependency — vuetify-nuxt-module auto-detects it and bundles the font; don't remove it, or icons silently fall back to a CDN (blocked in the screenshot sandbox, so every `v-icon` renders blank there).
+Nuxt 4.4 + Vue 3.5 + Vuetify 4.1 (MD3, dark theme) + Pinia 3 + Firebase RTDB (not Firestore) + TypeScript strict. ESLint 10 flat config via `@nuxt/eslint` + Prettier. Vitest 4 + `@nuxt/test-utils` (jsdom). Icons are tree-shaken MDI SVGs — see the **Icons** section under Design Conventions before touching any `v-icon`.
 
 ## Architecture
 
@@ -298,6 +298,16 @@ Every authenticated page: `v-row justify="center"` → `v-col cols="12" sm="11" 
 ### Event / gathering card pattern
 
 `.event-item pa-4 mb-3`: first row is chip + datetime only (never mix actions into the metadata row); action buttons go in a separate `.event-actions` div at the bottom. See `calendar.vue` for the canonical example.
+
+### Icons
+
+Icons are **tree-shaken MDI SVGs** (`@mdi/js` + Vuetify's `mdi-svg` icon set) — the app does **not** ship the MDI icon font, so `mdi-*` font-class names render nothing.
+
+- Reference icons as **`$aliasName`** (e.g. `<v-icon>$clockOutline</v-icon>`, `prepend-inner-icon="$magnify"`), including in TS maps that return icon names (see `responseIcon` in `helpers/gatherings.ts`).
+- **Adding a new icon**: register it in `vuetify.icons.ts` first — one line, camelCase alias key → the `@mdi/js` export name as a string (e.g. `mapMarkerOutline: 'mdiMapMarkerOutline'`). vuetify-nuxt-module generates the import at build time, so only registered icons ship in the bundle (~0.4 KB each vs ~460 KB for the full font).
+- An unregistered or typo'd alias renders **blank with no build error** — after adding icons, check the page with `yarn screenshot`.
+- Vuetify's internal defaults ($menu, chip close, select arrows, rating stars…) come from `vuetify/iconsets/mdi-svg` automatically; don't register those.
+- Don't add `@mdi/font` back (it's the whole 7,400-icon font) and don't hotlink icon CDNs.
 
 ### Icon-only action buttons
 
