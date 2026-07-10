@@ -6473,7 +6473,7 @@ __metadata:
     eslint-config-prettier: "npm:^10.1.8"
     eslint-plugin-prettier: "npm:^5.5.6"
     firebase: "npm:^12.15.0"
-    firebase-tools: "npm:^15.22.3"
+    firebase-tools: "npm:^15.23.0"
     husky: "npm:^9.1.7"
     jsdom: "npm:^29.1.1"
     lightningcss: "npm:^1.32.0"
@@ -9320,9 +9320,9 @@ __metadata:
   languageName: node
   linkType: hard
 
-"firebase-tools@npm:^15.22.3":
-  version: 15.22.3
-  resolution: "firebase-tools@npm:15.22.3"
+"firebase-tools@npm:^15.23.0":
+  version: 15.23.0
+  resolution: "firebase-tools@npm:15.23.0"
   dependencies:
     "@apphosting/common": "npm:^0.0.8"
     "@electric-sql/pglite": "npm:^0.3.3"
@@ -9386,6 +9386,7 @@ __metadata:
     tcp-port-used: "npm:^1.0.2"
     tmp: "npm:^0.2.3"
     triple-beam: "npm:^1.3.0"
+    undici: "npm:^6.19.0"
     universal-analytics: "npm:^0.5.3"
     update-notifier-cjs: "npm:^5.1.6"
     winston: "npm:^3.0.0"
@@ -9395,7 +9396,7 @@ __metadata:
     zod: "npm:^4.0.0"
   bin:
     firebase: lib/bin/firebase.js
-  checksum: 10c0/ec6ec6d1a5f80bdc871c4cc066035626099f8158beae2fa7cb78c89e24ff281972fda68c195af45f32f52704be08be4331b06f5a087bd90196c8e796de97c4e3
+  checksum: 10c0/a7ed0d15c1e14a5a99e9358e458e9f67db3ed7c9cfa82fa6cf2db9d971997d5e081482275babd7d3bc2ccc9682608a20d49f0cf50de0604cb99127cacba35e6d
   languageName: node
   linkType: hard
 
@@ -16380,7 +16381,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"undici@npm:^6.25.0":
+"undici@npm:^6.19.0, undici@npm:^6.25.0":
   version: 6.27.0
   resolution: "undici@npm:6.27.0"
   checksum: 10c0/f88c3dae3957dbf9d93cb481440aced317bd3c4941b5914fea5efba516d51138988cdb5c76006f0bb1337e41d56c3443351055d492e73af2428521c37ba2a76f
