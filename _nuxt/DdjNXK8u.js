@@ -1,4 +1,4 @@
-import{X as s,s as o,J as c,D as n}from"./DYiKmvZO.js";const t={},a={class:"meeple-container"};function l(r,e){return o(),c("div",a,[...e[0]||(e[0]=[n("div",{class:"meeple-glow"},null,-1),n("svg",{class:"meeple-svg",viewBox:"0 0 80 100",xmlns:"http://www.w3.org/2000/svg","aria-label":"Meeple logo",role:"img"},[n("circle",{cx:"40",cy:"14",r:"13"}),n("path",{d:`M 40 27
+import{X as s,s as o,J as c,D as n}from"./Cy3yuBTB.js";const t={},a={class:"meeple-container"};function l(r,e){return o(),c("div",a,[...e[0]||(e[0]=[n("div",{class:"meeple-glow"},null,-1),n("svg",{class:"meeple-svg",viewBox:"0 0 80 100",xmlns:"http://www.w3.org/2000/svg","aria-label":"Meeple logo",role:"img"},[n("circle",{cx:"40",cy:"14",r:"13"}),n("path",{d:`M 40 27
            C 46 27, 60 29, 66 31
            C 70 32, 75 34, 76 38
            C 77 43, 72 46, 66 45
