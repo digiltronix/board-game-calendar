@@ -40,7 +40,7 @@ Nuxt 4.4 + Vue 3.5 + Vuetify 4.1 (MD3, dark theme) + Pinia 3 + Firebase RTDB (no
 | `gamecollection.vue` | `/gamecollection` | `users/{uid}/collection/{pushId}`                                                                                                                                 |
 | `friends.vue`        | `/friends`        | `profiles/` (search + display), `users/{uid}/friends`, `friendRequests/{uid}`, `blocked/{uid}` (decline writes)                                                   |
 | `calendar.vue`       | `/calendar`       | `userGatherings/{uid}` (own index), `gatherings/{id}` (one listener per entry; splits hosting/invited/past client-side), `profiles/{uid}/name`                         |
-| `gatherings/new.vue` | `/gatherings/new` | `gatherings/{pushId}` (create; `?id=` edits in place) then `userGatherings/*` index sync, `users/{uid}` (own prefill), `profiles/{uid}/name` (friend/guest names) |
+| `gatherings/new.vue` | `/gatherings/new` | `gatherings/{pushId}` (create; `?id=` edits in place) then `userGatherings/*` index sync, `users/{uid}` (own prefill incl. address + `savedLocations` read/write), `profiles/{uid}/name` (friend/guest names) |
 | `index.vue`          | `/`               | none                                                                                                                                                              |
 | `privacy.vue`        | `/privacy`        | none — static privacy policy (public, no auth)                                                                                                                    |
 | `terms.vue`          | `/terms`          | none — static terms of service (public, no auth)                                                                                                                  |
@@ -65,6 +65,7 @@ Analytics is **opt-in** — `plugins/01-firebase.client.ts` does not load `fireb
 - `helpers/types.ts` — shared TS types incl. `FormInstance` for Vuetify 4 form refs
 - `helpers/gatherings.ts` — `splitGatherings` (upcoming hosting/invited + a `past` section; a gathering turns past once `datetime` + the 3-hour play window elapses, see `isPast`), state/response color+icon maps, `formatDatetime`
 - `helpers/collection.ts` — `filterAndSortCollection` + `collectionGenres`; pure + unit-tested; returns ordered `CollectionEntry[]`
+- `helpers/locations.ts` — saved gathering addresses: `addressToLocation` (multi-line profile address → single-line location), `savedLocationPlan` (save/dedupe/evict decision for `users/{uid}/savedLocations`), `MAX_SAVED_LOCATIONS`; pure + unit-tested
 - `helpers/calendar.ts` — `googleCalendarUrl()`, `buildIcs()` (3-hour VEVENT; `LOCATION` from the gathering's `location`, `notes` folded into the description), `downloadIcs()`, `toCalendarEventInput()`. Cloud Functions duplicate this — keep both in sync.
 - `database.rules.json` — Firebase Realtime DB security rules (deployed by `cd.yml`)
 
@@ -113,6 +114,13 @@ Pages own routing/layout, composables own data/logic (`composables/`, auto-impor
   maxPeople: number
 }
 // the account email is not stored; the UI reads it from Firebase Auth
+
+// users/{uid}/savedLocations/{pushId}: string — owner-only history of
+// addresses previously used on gatherings (≤200 chars each; capped at
+// MAX_SAVED_LOCATIONS=5 client-side, oldest evicted). Written best-effort
+// after a gathering save; skips the host's own address and duplicates.
+// Surfaced as quick-fill chips ("My address" + past addresses) under the
+// Location field on the gathering form — logic in helpers/locations.ts
 
 // users/{uid}/collection/{pushId} — owner-writable; readable by the owner and
 // their *mutual* friends (rule-enforced), which backs the friend-collection
@@ -166,7 +174,7 @@ type Gathering = {
 `database.rules.json` covers `profiles/`, `users/`, `friendRequests/`, `blocked/`, `gatherings/`, and `userGatherings/` (deployed automatically by `cd.yml` on push to `main`; manual deploy: `firebase deploy --only database`). All nodes reject unknown keys via `"$other": { ".validate": false }` and bound types/lengths with field-level `.validate` rules.
 
 - `profiles/{uid}` — the public/private profile split: only this node is readable by any authenticated user (required for friend search queries on `queryableName`/`queryableEmail`/`queryablePhone`, all indexed via `.indexOn`); owner-only write. A _new_ `queryableEmail` must match `auth.token.email` **with `email_verified === true`** (so an unverified signup can't squat someone else's address; sign-in writes it once verified, and profile saves preserve the stored value); `name` and `queryableName` must agree (`queryableName === lowercase(name)`, enforced symmetrically so neither can drift); `queryablePhone` must be digits-only.
-- `users/{uid}` — owner-only read **and** write for phone, address, maxPeople, `gameOpinions` (ratings + `privateNote`), and the friends list — with one carve-out: `users/{uid}/collection` is additionally readable by *mutual* friends (both sides present in each other's friends lists), which backs the friend-collection view.
+- `users/{uid}` — owner-only read **and** write for phone, address, maxPeople, `savedLocations` (past gathering addresses), `gameOpinions` (ratings + `privateNote`), and the friends list — with one carve-out: `users/{uid}/collection` is additionally readable by *mutual* friends (both sides present in each other's friends lists), which backs the friend-collection view.
 - `friendRequests/{toUid}/{fromUid}` — top-level so authorship is rule-enforced (a request nested under the recipient's own subtree was owner-forgeable). Only the sender can create (not overwrite) a `'pending'` entry, blocked senders can't; only the recipient can delete. Recipient reads their whole node; a sender can read only their own outgoing entry.
 - `blocked/{ownerUid}/{blockedUid}` — owner-only read and write; value must be `true`.
 - `users/{uid}/friends/{friendId}` — the owner can write their own list; additionally `friendId` may add themselves only while a pending request from `uid` exists at `friendRequests/{friendId}/{uid}` (the accept flow's mutual multi-path update), and may always delete themselves (mutual unfriend).
