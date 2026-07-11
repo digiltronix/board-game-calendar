@@ -22,7 +22,7 @@
   },
   "dependencies": {
     "awesome-phonenumber": "^7.8.0",
-    "firebase": "^12.15.0",
+    "firebase": "^12.16.0",
     "firebase-tools": "^15.23.0",
     "vite": "^8.1.0",
     "yup": "^1.7.1"
