@@ -52,6 +52,27 @@
               prepend-inner-icon="$mapMarkerOutline"
               class="mb-2"
             />
+            <div
+              v-if="locationSuggestions.length"
+              class="d-flex flex-wrap gap-2 mb-4"
+            >
+              <v-chip
+                v-for="suggestion in locationSuggestions"
+                :key="suggestion.key"
+                size="small"
+                link
+                :color="suggestion.own ? 'primary' : undefined"
+                :variant="suggestion.own ? 'tonal' : undefined"
+                :prepend-icon="suggestion.own ? '$homeOutline' : '$history'"
+                :closable="!suggestion.own"
+                :title="suggestion.value"
+                class="location-chip"
+                @click="location = suggestion.value"
+                @click:close="removeSavedLocation(suggestion.key)"
+              >
+                {{ suggestion.own ? 'My address' : suggestion.value }}
+              </v-chip>
+            </div>
             <div class="section-label mb-2">Details</div>
             <v-text-field
               v-model="maxGuests"
@@ -162,10 +183,11 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { ref as dbRef, get, push, set, update, remove } from 'firebase/database'
 import Snackbar from '~/components/Snackbar.vue'
 import helpers from '~/helpers/helpers'
+import { addressToLocation, savedLocationPlan } from '~/helpers/locations'
 import routes from '~/helpers/routes'
 import type {
   FormInstance,
@@ -190,6 +212,35 @@ const saving = ref(false)
 const date = ref('')
 const time = ref('')
 const location = ref('')
+const ownAddress = ref('')
+const savedLocations = ref<Record<string, string>>({})
+
+// Quick-fill chips under the Location field: the host's own profile address
+// first, then previously used addresses (newest first)
+const locationSuggestions = computed(() => {
+  const suggestions: { key: string; value: string; own: boolean }[] = []
+  const own = addressToLocation(ownAddress.value)
+  if (own) suggestions.push({ key: 'own-address', value: own, own: true })
+  const pastEntries = Object.entries(savedLocations.value)
+    .sort(([a], [b]) => b.localeCompare(a))
+    .map(([key, value]) => ({ key, value, own: false }))
+  return [...suggestions, ...pastEntries]
+})
+
+async function removeSavedLocation(key: string) {
+  const uid = userStore.user!.uid
+  try {
+    await remove(dbRef(db, `users/${uid}/savedLocations/${key}`))
+    savedLocations.value = Object.fromEntries(
+      Object.entries(savedLocations.value).filter(([k]) => k !== key)
+    )
+  } catch (err) {
+    snackbar.value?.showSnackbarWithMessage(
+      helpers.handleError(err).message,
+      true
+    )
+  }
+}
 const notes = ref('')
 const maxGuests = ref<number | string>(0)
 const selectedGuests = ref<string[]>([])
@@ -257,11 +308,17 @@ const validation = {
 onMounted(async () => {
   const uid = userStore.user!.uid
   try {
-    const [profileSnap, friendsSnap, collectionSnap] = await Promise.all([
-      get(dbRef(db, `users/${uid}/maxPeople`)),
-      get(dbRef(db, `users/${uid}/friends`)),
-      get(dbRef(db, `users/${uid}/collection`)),
-    ])
+    const [profileSnap, friendsSnap, collectionSnap, addressSnap, locsSnap] =
+      await Promise.all([
+        get(dbRef(db, `users/${uid}/maxPeople`)),
+        get(dbRef(db, `users/${uid}/friends`)),
+        get(dbRef(db, `users/${uid}/collection`)),
+        get(dbRef(db, `users/${uid}/address`)),
+        get(dbRef(db, `users/${uid}/savedLocations`)),
+      ])
+
+    ownAddress.value = addressSnap.val() ?? ''
+    savedLocations.value = locsSnap.val() ?? {}
 
     // Hosts usually count themselves in maxPeople, hence the -1 default
     const maxPeople = profileSnap.val()
@@ -437,6 +494,24 @@ async function createGathering() {
       )
     await Promise.all([...emailDeleteOps, ...emailAddOps])
 
+    // Remember the address for future gatherings (skips the host's own
+    // address and duplicates, evicts the oldest past the cap). Best-effort:
+    // a failure here must not surface as a failed gathering save.
+    const plan = savedLocationPlan(
+      savedLocations.value,
+      location.value,
+      ownAddress.value
+    )
+    if (plan.save) {
+      const locationOps: Record<string, string | null> = Object.fromEntries(
+        plan.removeKeys.map((key) => [`users/${uid}/savedLocations/${key}`, null])
+      )
+      const newKey = push(dbRef(db, `users/${uid}/savedLocations`)).key
+      locationOps[`users/${uid}/savedLocations/${newKey}`] =
+        location.value.trim()
+      await update(dbRef(db), locationOps).catch(() => {})
+    }
+
     logEvent(editId ? 'edit_gathering' : 'create_gathering', {
       guests: selectedGuests.value.length,
       games: selectedGameIds.value.length,
@@ -455,6 +530,17 @@ async function createGathering() {
 </script>
 
 <style scoped>
+/* Long saved addresses ellipsize instead of overflowing the card */
+.location-chip {
+  max-width: 100%;
+}
+
+.location-chip :deep(.v-chip__content) {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* Blend browser-native date/time controls with the warm Vuetify styling */
 :deep(input[type='date']),
 :deep(input[type='time']) {

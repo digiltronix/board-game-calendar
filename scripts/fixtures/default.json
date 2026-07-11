@@ -23,6 +23,10 @@
     "screenshot-uid-1": {
       "phoneNumber": "555-867-5309",
       "address": "123 Game Night Lane\nBoard City, BC 12345",
+      "savedLocations": {
+        "loc-001": "Meeple's Game Café, 42 Dice Ave",
+        "loc-002": "77 Victory Point Rd, Board City"
+      },
       "maxPeople": 6,
       "collection": {
         "game-001": {

@@ -333,6 +333,25 @@ describe('private profile (users/) rules', () => {
     )
   })
 
+  it('validates savedLocations entries and keeps them owner-only', async () => {
+    await assertSucceeds(
+      set(ref(db('alice'), 'users/alice/savedLocations/loc1'), '99 Elm St')
+    )
+    await assertFails(
+      set(ref(db('alice'), 'users/alice/savedLocations/loc2'), 'x'.repeat(201))
+    )
+    await assertFails(
+      set(ref(db('alice'), 'users/alice/savedLocations/loc3'), '')
+    )
+    await assertFails(
+      set(ref(db('alice'), 'users/alice/savedLocations/loc4'), 42)
+    )
+    await assertFails(
+      set(ref(db('bob'), 'users/alice/savedLocations/loc5'), '99 Elm St')
+    )
+    await assertFails(get(ref(db('bob'), 'users/alice/savedLocations')))
+  })
+
   it('allows the atomic profile save across users/ and profiles/', async () => {
     await assertSucceeds(
       update(ref(alice()), {
