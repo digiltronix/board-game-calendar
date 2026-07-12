@@ -2,6 +2,7 @@ import { setGlobalOptions } from 'firebase-functions'
 import { onCall, HttpsError, onRequest } from 'firebase-functions/v2/https'
 import {
   onValueCreated,
+  onValueDeleted,
   onValueUpdated,
   onValueWritten,
 } from 'firebase-functions/v2/database'
@@ -11,7 +12,12 @@ import { getAuth } from 'firebase-admin/auth'
 import { getDatabase } from 'firebase-admin/database'
 import { parseString } from 'xml2js'
 import { promisify } from 'util'
-import { createHmac, randomBytes, timingSafeEqual } from 'crypto'
+import {
+  createHash,
+  createHmac,
+  randomBytes,
+  timingSafeEqual,
+} from 'crypto'
 
 initializeApp()
 
@@ -459,6 +465,13 @@ async function getProfileName(uid: string): Promise<string> {
   return typeof val === 'string' ? val : 'Someone'
 }
 
+// Key for emailInviteIndex/{key}/{gatheringId}. A hash rather than the raw
+// address both because RTDB keys can't contain '.' and so the index doesn't
+// hold plaintext emails — see the "no rules" note on the index itself below.
+function hashEmail(email: string): string {
+  return createHash('sha256').update(email.toLowerCase()).digest('hex')
+}
+
 // Raw gathering node as read from RTDB; fields are validated by the security
 // rules but read back untyped, so narrow each one before use.
 type GatheringRecord = Record<string, unknown>
@@ -536,6 +549,12 @@ export const onGatheringEmailInvite = onValueCreated(
       )
       return
     }
+    // Lets a matching verified-email sign-in find this gathering later even if
+    // the recipient never clicks the Accept/Decline links below (see
+    // listMyEmailInvites). Idempotent, so a retried delivery is harmless.
+    await getDatabase()
+      .ref(`emailInviteIndex/${hashEmail(email)}/${gatheringId}`)
+      .set(true)
     const hostName = await getProfileName(gathering.host as string)
     const datetime = formatDatetime(
       gathering.datetime as string,
@@ -565,6 +584,27 @@ ${calendarLinkHtml(calEvent)}`,
     )
     if (result === 'retry')
       throw new Error(`Transient failure sending invite email to ${email}`)
+  }
+)
+
+// Mirrors an emailInvites removal into emailInviteIndex — fires whether a host
+// removes one invite directly, or the whole gathering (or account) is deleted
+// and every emailInvites child under it is removed as a side effect; RTDB's
+// value-deleted trigger fires per child in both cases. Keeps the index from
+// pointing at invites that no longer exist.
+export const onGatheringEmailInviteRemoved = onValueDeleted(
+  {
+    ref: 'gatherings/{gatheringId}/emailInvites/{inviteId}',
+    instance: 'board-game-calendar-3ae94-default-rtdb',
+    retry: true,
+  },
+  async (event) => {
+    const { gatheringId } = event.params
+    const email = event.data.val() as string | null
+    if (!email || typeof email !== 'string') return
+    await getDatabase()
+      .ref(`emailInviteIndex/${hashEmail(email)}/${gatheringId}`)
+      .remove()
   }
 )
 
@@ -622,8 +662,105 @@ export const acceptEmailInvite = onCall(
       [`gatherings/${gatheringId}/guests/${uid}`]: response,
       [`userGatherings/${uid}/${gatheringId}`]: true,
       [`gatherings/${gatheringId}/emailInvites/${inviteId}`]: null,
+      [`emailInviteIndex/${hashEmail(userEmail)}/${gatheringId}`]: null,
     })
     return { success: true }
+  }
+)
+
+// Nothing bounds how many gatherings can index the same address (any host can
+// create a gathering and email-invite anyone), so cap the per-call fan-out —
+// each gathering costs two reads below, and this is called on every calendar
+// page load. A legitimate user is never invited to anywhere near this many
+// gatherings at once; the cap only bites under abuse.
+const MAX_EMAIL_INVITES_PER_LOOKUP = 25
+
+// Lets a guest discover email invites without needing the exact Accept/Decline
+// link from the invite email — e.g. they signed up separately, lost the email,
+// or clicked "View on your calendar" instead. Looks up only the caller's own
+// verified email against emailInviteIndex (which has no client .read rule at
+// all — this callable, running as admin, is the only door in) and returns a
+// lightweight summary per pending gathering for the calendar page to render.
+export const listMyEmailInvites = onCall(
+  { enforceAppCheck: true },
+  async (request) => {
+    if (!request.auth) {
+      throw new HttpsError('unauthenticated', 'Must be signed in')
+    }
+    const userEmail = request.auth.token.email?.toLowerCase()
+    if (!userEmail) {
+      throw new HttpsError('failed-precondition', 'Account has no email address')
+    }
+    if (!request.auth.token.email_verified) {
+      throw new HttpsError('failed-precondition', 'Email address must be verified')
+    }
+    const uid = request.auth.uid
+    const db = getDatabase()
+    const emailHash = hashEmail(userEmail)
+    const indexSnap = await db.ref(`emailInviteIndex/${emailHash}`).get()
+    const gatheringIds = Object.keys(
+      (indexSnap.val() as Record<string, boolean> | null) ?? {}
+    ).slice(0, MAX_EMAIL_INVITES_PER_LOOKUP)
+    if (!gatheringIds.length) return { invites: [] }
+
+    // Each entry is handled independently and never throws out of this
+    // function — one bad lookup (a transient self-heal delete failure, a
+    // missing profile, anything) must not blank out every other valid invite
+    // in the same batch, since Promise.all rejects as a whole on any reject.
+    const invites = await Promise.all(
+      gatheringIds.map(async (gatheringId) => {
+        try {
+          const snap = await db.ref(`gatherings/${gatheringId}`).get()
+          const gathering = snap.val() as Record<string, unknown> | null
+          if (!gathering) {
+            // Stale pointer (gathering deleted without going through the
+            // normal emailInvites-removal path) — self-heal rather than
+            // surface it. Best-effort: if the cleanup write itself fails,
+            // this entry is just skipped, not the whole response.
+            await db
+              .ref(`emailInviteIndex/${emailHash}/${gatheringId}`)
+              .remove()
+              .catch(() => {})
+            return null
+          }
+          if (gathering.state === 'canceled') return null
+          const guests = (gathering.guests ?? {}) as Record<string, unknown>
+          if (uid in guests) {
+            // Already a real guest through some other path (e.g. the host
+            // separately added them via the friend picker) — the emailInvites
+            // entry is a redundant leftover. Surfacing it would let Accept/
+            // Decline here silently overwrite their existing response via
+            // acceptEmailInvite, which doesn't check for one; drop the
+            // now-pointless index entry instead of showing it.
+            await db
+              .ref(`emailInviteIndex/${emailHash}/${gatheringId}`)
+              .remove()
+              .catch(() => {})
+            return null
+          }
+          const hostName = await getProfileName(gathering.host as string)
+          return {
+            gatheringId,
+            host: hostName,
+            datetime: gathering.datetime as string,
+            timezone: gathering.timezone as string | undefined,
+            location: optionalString(gathering.location),
+            games:
+              (gathering.games as { name?: string }[] | null)
+                ?.map((g) => g.name)
+                .filter((name): name is string => Boolean(name)) ?? [],
+          }
+        } catch (err) {
+          console.warn(`listMyEmailInvites: skipping ${gatheringId}`, err)
+          return null
+        }
+      })
+    )
+    return {
+      invites: invites.filter(
+        (invite): invite is NonNullable<typeof invite> => invite !== null
+      ),
+    }
   }
 )
 
