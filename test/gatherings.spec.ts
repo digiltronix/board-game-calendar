@@ -5,9 +5,10 @@ import {
   acceptedCount,
   isFull,
   stateColor,
+  buildGameItems,
   type GatheringWithId,
 } from '~/helpers/gatherings'
-import type { Gathering } from '~/helpers/types'
+import type { Gathering, Game } from '~/helpers/types'
 
 const NOW = new Date('2026-07-03T12:00:00.000Z')
 const FUTURE = '2026-07-10T19:00:00.000Z'
@@ -115,5 +116,52 @@ describe('stateColor', () => {
     expect(stateColor('pending')).toBe('warning')
     expect(stateColor('confirmed')).toBe('success')
     expect(stateColor('canceled')).toBe('error')
+  })
+})
+
+function game(overrides: Partial<Game>): Game {
+  return { id: 'g1', name: 'Catan', thumbnail: '', ...overrides }
+}
+
+describe('buildGameItems', () => {
+  it('lists the host own games unsuffixed', () => {
+    const { items } = buildGameItems([game({ id: '1', name: 'Catan' })], [])
+    expect(items).toEqual([{ title: 'Catan', value: '1' }])
+  })
+
+  it('suffixes a friend-only game with the friend name', () => {
+    const { items } = buildGameItems(
+      [],
+      [{ name: 'Alex', games: [game({ id: '2', name: 'Wingspan' })] }]
+    )
+    expect(items).toEqual([{ title: 'Wingspan (Alex)', value: '2' }])
+  })
+
+  it('joins multiple friend owners of the same game', () => {
+    const { items } = buildGameItems(
+      [],
+      [
+        { name: 'Alex', games: [game({ id: '2', name: 'Wingspan' })] },
+        { name: 'Sam', games: [game({ id: '2', name: 'Wingspan' })] },
+      ]
+    )
+    expect(items).toEqual([{ title: 'Wingspan (Alex, Sam)', value: '2' }])
+  })
+
+  it('leaves a game the host already owns unsuffixed even if a friend also owns it', () => {
+    const { items, gamesById } = buildGameItems(
+      [game({ id: '1', name: 'Catan' })],
+      [{ name: 'Alex', games: [game({ id: '1', name: 'Catan' })] }]
+    )
+    expect(items).toEqual([{ title: 'Catan', value: '1' }])
+    expect(gamesById['1'].name).toBe('Catan')
+  })
+
+  it('sorts items by title', () => {
+    const { items } = buildGameItems(
+      [game({ id: '2', name: 'Wingspan' })],
+      [{ name: 'Alex', games: [game({ id: '1', name: 'Azul' })] }]
+    )
+    expect(items.map((i) => i.title)).toEqual(['Azul (Alex)', 'Wingspan'])
   })
 })

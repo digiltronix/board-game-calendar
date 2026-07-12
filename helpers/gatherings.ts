@@ -1,5 +1,5 @@
 import { GATHERING_DURATION_HOURS } from './calendar'
-import type { Gathering, GatheringState, GuestResponse } from './types'
+import type { Game, Gathering, GatheringState, GuestResponse } from './types'
 
 export type GatheringWithId = Gathering & { id: string }
 
@@ -68,6 +68,52 @@ export function responseIcon(response: GuestResponse): string {
       declined: '$closeCircleOutline',
     }[response] ?? '$helpCircleOutline'
   )
+}
+
+export type FriendCollection = { name: string; games: Game[] }
+
+// Builds the "Games to play" select items for the gathering form: the host's
+// own collection, plus friends' collections so a game night can pull from
+// whoever owns it. A game already in the host's own collection is listed
+// once (no owner suffix — the host can bring it regardless of who else
+// owns it); a game only friends own is suffixed with their name(s) so the
+// host knows whose copy they're picking.
+export function buildGameItems(
+  ownGames: Game[],
+  friendCollections: FriendCollection[]
+): { items: { title: string; value: string }[]; gamesById: Record<string, Game> } {
+  const gamesById: Record<string, Game> = {}
+  const ownerNames: Record<string, string[]> = {}
+
+  for (const game of ownGames) {
+    gamesById[game.id] = game
+  }
+
+  for (const { name, games } of friendCollections) {
+    for (const game of games) {
+      if (ownGames.some((owned) => owned.id === game.id)) continue
+      if (!gamesById[game.id]) {
+        gamesById[game.id] = game
+        ownerNames[game.id] = [name]
+      } else if (!ownerNames[game.id].includes(name)) {
+        ownerNames[game.id].push(name)
+      }
+    }
+  }
+
+  const items = Object.values(gamesById)
+    .map((game) => {
+      const owners = ownerNames[game.id]
+      return {
+        title: owners?.length
+          ? `${game.name} (${owners.join(', ')})`
+          : game.name,
+        value: game.id,
+      }
+    })
+    .sort((a, b) => a.title.localeCompare(b.title))
+
+  return { items, gamesById }
 }
 
 export function formatDatetime(iso: string): string {
