@@ -163,7 +163,11 @@
               "
               persistent-hint
               class="mb-6"
-            />
+            >
+              <template #item="{ props: itemProps, item }">
+                <v-list-item v-bind="itemProps" :subtitle="item.subtitle" />
+              </template>
+            </v-select>
             <v-btn
               type="submit"
               block
@@ -247,7 +251,9 @@ const maxGuests = ref<number | string>(0)
 const selectedGuests = ref<string[]>([])
 const selectedGameIds = ref<string[]>([])
 const friendItems = ref<{ title: string; value: string }[]>([])
-const gameItems = ref<{ title: string; value: string }[]>([])
+const gameItems = ref<{ title: string; subtitle?: string; value: string }[]>(
+  []
+)
 let gamesById: Record<string, Game> = {}
 
 // Email invite state (non-user invitees)

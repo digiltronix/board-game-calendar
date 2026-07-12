@@ -75,13 +75,16 @@ export type FriendCollection = { name: string; games: Game[] }
 // Builds the "Games to play" select items for the gathering form: the host's
 // own collection, plus friends' collections so a game night can pull from
 // whoever owns it. A game already in the host's own collection is listed
-// once (no owner suffix — the host can bring it regardless of who else
-// owns it); a game only friends own is suffixed with their name(s) so the
-// host knows whose copy they're picking.
+// once with no subtitle (the host can bring it regardless of who else owns
+// it); a game only friends own gets their name(s) as the item subtitle so
+// the host knows whose copy they're picking.
 export function buildGameItems(
   ownGames: Game[],
   friendCollections: FriendCollection[]
-): { items: { title: string; value: string }[]; gamesById: Record<string, Game> } {
+): {
+  items: { title: string; subtitle?: string; value: string }[]
+  gamesById: Record<string, Game>
+} {
   const gamesById: Record<string, Game> = {}
   const ownerNames: Record<string, string[]> = {}
 
@@ -105,9 +108,8 @@ export function buildGameItems(
     .map((game) => {
       const owners = ownerNames[game.id]
       return {
-        title: owners?.length
-          ? `${game.name} (${owners.join(', ')})`
-          : game.name,
+        title: game.name,
+        subtitle: owners?.length ? owners.join(', ') : undefined,
         value: game.id,
       }
     })

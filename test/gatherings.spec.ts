@@ -124,17 +124,19 @@ function game(overrides: Partial<Game>): Game {
 }
 
 describe('buildGameItems', () => {
-  it('lists the host own games unsuffixed', () => {
+  it('lists the host own games with no subtitle', () => {
     const { items } = buildGameItems([game({ id: '1', name: 'Catan' })], [])
-    expect(items).toEqual([{ title: 'Catan', value: '1' }])
+    expect(items).toEqual([{ title: 'Catan', subtitle: undefined, value: '1' }])
   })
 
-  it('suffixes a friend-only game with the friend name', () => {
+  it('subtitles a friend-only game with the friend name', () => {
     const { items } = buildGameItems(
       [],
       [{ name: 'Alex', games: [game({ id: '2', name: 'Wingspan' })] }]
     )
-    expect(items).toEqual([{ title: 'Wingspan (Alex)', value: '2' }])
+    expect(items).toEqual([
+      { title: 'Wingspan', subtitle: 'Alex', value: '2' },
+    ])
   })
 
   it('joins multiple friend owners of the same game', () => {
@@ -145,15 +147,17 @@ describe('buildGameItems', () => {
         { name: 'Sam', games: [game({ id: '2', name: 'Wingspan' })] },
       ]
     )
-    expect(items).toEqual([{ title: 'Wingspan (Alex, Sam)', value: '2' }])
+    expect(items).toEqual([
+      { title: 'Wingspan', subtitle: 'Alex, Sam', value: '2' },
+    ])
   })
 
-  it('leaves a game the host already owns unsuffixed even if a friend also owns it', () => {
+  it('leaves a game the host already owns without a subtitle even if a friend also owns it', () => {
     const { items, gamesById } = buildGameItems(
       [game({ id: '1', name: 'Catan' })],
       [{ name: 'Alex', games: [game({ id: '1', name: 'Catan' })] }]
     )
-    expect(items).toEqual([{ title: 'Catan', value: '1' }])
+    expect(items).toEqual([{ title: 'Catan', subtitle: undefined, value: '1' }])
     expect(gamesById['1'].name).toBe('Catan')
   })
 
@@ -162,6 +166,6 @@ describe('buildGameItems', () => {
       [game({ id: '2', name: 'Wingspan' })],
       [{ name: 'Alex', games: [game({ id: '1', name: 'Azul' })] }]
     )
-    expect(items.map((i) => i.title)).toEqual(['Azul (Alex)', 'Wingspan'])
+    expect(items.map((i) => i.title)).toEqual(['Azul', 'Wingspan'])
   })
 })
