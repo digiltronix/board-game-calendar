@@ -196,6 +196,10 @@
       ".read": false,
       ".write": false
     },
+    "emailInviteRateLimit": {
+      ".read": false,
+      ".write": false
+    },
     ".read": false,
     ".write": false
   }
