@@ -24,7 +24,12 @@
           />
         </v-card-text>
         <v-card-text
-          v-else-if="!hosting.length && !invited.length && !past.length"
+          v-else-if="
+            !hosting.length &&
+            !invited.length &&
+            !past.length &&
+            !pendingEmailInvites.length
+          "
           class="pa-6"
         >
           <div class="empty-state">
@@ -46,6 +51,68 @@
           </div>
         </v-card-text>
         <v-card-text v-else class="pa-6">
+          <template v-if="pendingEmailInvites.length">
+            <div class="section-label mb-3">Pending invites</div>
+            <div
+              v-for="invite in pendingEmailInvites"
+              :key="invite.gatheringId"
+              class="event-item pa-5 mb-4"
+            >
+              <div class="d-flex align-center flex-wrap gap-3 mb-3">
+                <v-chip color="warning" size="small" variant="tonal">
+                  Invited
+                </v-chip>
+                <span class="event-line"
+                  ><v-icon size="16" class="mr-1">$clockOutline</v-icon
+                  >{{ formatDatetime(invite.datetime) }}</span
+                >
+              </div>
+              <div class="event-line mb-3">
+                <v-icon size="16" class="mr-1">$account</v-icon>Hosted by
+                {{ invite.host }}
+              </div>
+              <div v-if="invite.location" class="event-line event-line--text mb-3">
+                <v-icon size="16" class="mr-1">$mapMarkerOutline</v-icon>
+                <span class="event-text">{{ invite.location }}</span>
+              </div>
+              <div v-if="invite.games.length" class="event-line mb-3">
+                <v-icon size="16" class="mr-1">$rhombusSplit</v-icon>
+                <v-chip
+                  v-for="game in invite.games"
+                  :key="game"
+                  size="x-small"
+                  variant="outlined"
+                  class="mr-1"
+                  >{{ game }}</v-chip
+                >
+              </div>
+              <div class="event-actions">
+                <v-btn
+                  density="compact"
+                  size="small"
+                  variant="text"
+                  color="success"
+                  :loading="respondingInviteIds.has(invite.gatheringId)"
+                  :disabled="respondingInviteIds.has(invite.gatheringId)"
+                  @click.stop="respondToEmailInvite(invite, 'accepted')"
+                >
+                  <v-icon start>$checkCircle</v-icon>Accept
+                </v-btn>
+                <v-btn
+                  density="compact"
+                  size="small"
+                  variant="text"
+                  color="error"
+                  :loading="respondingInviteIds.has(invite.gatheringId)"
+                  :disabled="respondingInviteIds.has(invite.gatheringId)"
+                  @click.stop="respondToEmailInvite(invite, 'declined')"
+                >
+                  <v-icon start>$closeCircle</v-icon>Decline
+                </v-btn>
+              </div>
+            </div>
+          </template>
+
           <template v-if="hosting.length">
             <div class="section-label mb-3">Hosting</div>
             <div
@@ -276,7 +343,7 @@
           </template>
 
           <div
-            v-if="!hosting.length && !invited.length"
+            v-if="!hosting.length && !invited.length && !pendingEmailInvites.length"
             class="empty-desc text-center py-4"
           >
             No upcoming gatherings — host one or get invited.
@@ -387,6 +454,19 @@ import type { Gathering, GatheringState, GuestResponse } from '~/helpers/types'
 
 useHead({ title: 'Calendar' })
 
+// Returned by the listMyEmailInvites Cloud Function — a lightweight summary
+// (not a full Gathering) for an emailInvites entry the signed-in user's
+// verified address matches, found via emailInviteIndex rather than the exact
+// Accept/Decline link from the invite email.
+type EmailInviteSummary = {
+  gatheringId: string
+  host: string
+  datetime: string
+  timezone?: string
+  location?: string
+  games: string[]
+}
+
 const userStore = useUserStore()
 const router = useRouter()
 const route = useRoute()
@@ -405,6 +485,11 @@ const gatheringListeners = new Map<string, () => void>()
 
 const uid = userStore.user!.uid
 const { names, resolveNames, guestEntries } = useGatheringDisplay()
+
+// Invites found via listMyEmailInvites — see the watch(loading, ...) below
+// for when this gets (re)fetched.
+const pendingEmailInvites = ref<EmailInviteSummary[]>([])
+const respondingInviteIds = ref<Set<string>>(new Set())
 
 // Email "Accept"/"Decline" buttons deep-link here as
 // /calendar?id={gatheringId}&respond=accepted|declined. The RSVP is applied
@@ -526,37 +611,98 @@ watch(sections, (value) => {
   void resolveNames(value)
 })
 
-// When a user follows an email invite link but isn't yet a registered guest,
-// call the acceptEmailInvite Cloud Function to convert their email invite into
-// a proper guest entry. The userGatherings index update inside the function
-// then triggers the index listener, which calls watchGathering — after which
-// the RSVP watcher below processes the response normally.
-async function tryAcceptEmailInvite() {
-  const intent = pendingRsvp.value
-  if (!intent || gatheringsById.value[intent.id]) return
+// Shared by the deep-link RSVP flow below and the "Pending invites" section:
+// calls the acceptEmailInvite Cloud Function, which converts an emailInvites
+// entry into a proper guest entry (and removes it from emailInviteIndex).
+// Runs as admin, so it bypasses the mutual-friendship check entirely.
+async function callAcceptEmailInvite(
+  gatheringId: string,
+  response: GuestResponse
+): Promise<{ ok: true } | { ok: false; message: string }> {
   try {
     const fn = httpsCallable<
       { gatheringId: string; response: string },
       { success: boolean }
     >(functions, 'acceptEmailInvite')
-    await fn({ gatheringId: intent.id, response: intent.response })
+    await fn({ gatheringId, response })
+    return { ok: true }
   } catch (err) {
-    pendingRsvp.value = null
-    clearRsvpQuery()
     const code = (err as { code?: string })?.code
-    const msg =
+    const message =
       code === 'functions/not-found'
         ? 'No invitation found for your account.'
         : code === 'functions/failed-precondition'
           ? 'This gathering has been canceled.'
           : helpers.handleError(err).message
-    snackbar.value?.showSnackbarWithMessage(msg, true)
+    return { ok: false, message }
   }
 }
 
-watch(loading, (isLoading) => {
-  if (isLoading || !pendingRsvp.value) return
-  void tryAcceptEmailInvite()
+// When a user follows an email invite link but isn't yet a registered guest,
+// convert their email invite into a proper guest entry. The userGatherings
+// index update inside the function then triggers the index listener, which
+// calls watchGathering — after which the RSVP watcher below applies the
+// response normally.
+async function tryAcceptEmailInvite() {
+  const intent = pendingRsvp.value
+  if (!intent || gatheringsById.value[intent.id]) return
+  const result = await callAcceptEmailInvite(intent.id, intent.response)
+  if (!result.ok) {
+    pendingRsvp.value = null
+    clearRsvpQuery()
+    snackbar.value?.showSnackbarWithMessage(result.message, true)
+  }
+}
+
+// Finds emailInvites the signed-in verified address matches, for guests who
+// never clicked the exact Accept/Decline link (signed up separately, lost the
+// email, and so on). Best-effort — a failure here shouldn't block the rest of
+// the calendar.
+async function loadEmailInvites() {
+  try {
+    const fn = httpsCallable<unknown, { invites: EmailInviteSummary[] }>(
+      functions,
+      'listMyEmailInvites'
+    )
+    const result = await fn()
+    pendingEmailInvites.value = result.data.invites ?? []
+  } catch (err) {
+    helpers.handleError(err)
+  }
+}
+
+async function respondToEmailInvite(
+  invite: EmailInviteSummary,
+  response: GuestResponse
+) {
+  if (respondingInviteIds.value.has(invite.gatheringId)) return
+  respondingInviteIds.value = new Set(respondingInviteIds.value).add(
+    invite.gatheringId
+  )
+  const result = await callAcceptEmailInvite(invite.gatheringId, response)
+  const next = new Set(respondingInviteIds.value)
+  next.delete(invite.gatheringId)
+  respondingInviteIds.value = next
+  if (!result.ok) {
+    snackbar.value?.showSnackbarWithMessage(result.message, true)
+    return
+  }
+  pendingEmailInvites.value = pendingEmailInvites.value.filter(
+    (i) => i.gatheringId !== invite.gatheringId
+  )
+  logEvent('gathering_rsvp', { response, source: 'email_invite_inbox' })
+  snackbar.value?.showSnackbarWithMessage(
+    response === 'accepted'
+      ? 'You accepted the invitation.'
+      : 'You declined the invitation.',
+    false
+  )
+}
+
+watch(loading, async (isLoading) => {
+  if (isLoading) return
+  if (pendingRsvp.value) await tryAcceptEmailInvite()
+  void loadEmailInvites()
 })
 
 // Apply an email-deep-linked RSVP once its gathering has loaded. Fires when

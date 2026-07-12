@@ -761,3 +761,23 @@ describe('userGatherings index rules', () => {
     )
   })
 })
+
+// emailInviteIndex/{emailHash}/{gatheringId} lets a guest discover an email
+// invite without the exact Accept/Decline link (see listMyEmailInvites in
+// functions). It carries no rule of its own on purpose — reads and writes
+// must stay Cloud-Functions-only (admin SDK bypasses rules entirely), since
+// the index exists specifically so no client query can enumerate it.
+describe('emailInviteIndex rules', () => {
+  it('is unreadable and unwritable by every client, host or otherwise', async () => {
+    await seed('emailInviteIndex/deadbeef/g1', true)
+    await assertFails(get(ref(db('host1'), 'emailInviteIndex/deadbeef')))
+    await assertFails(get(ref(db('host1'), 'emailInviteIndex/deadbeef/g1')))
+    await assertFails(get(ref(db(), 'emailInviteIndex/deadbeef')))
+    await assertFails(
+      set(ref(db('host1'), 'emailInviteIndex/deadbeef/g1'), true)
+    )
+    await assertFails(
+      set(ref(db('mallory'), 'emailInviteIndex/anything/g1'), true)
+    )
+  })
+})
