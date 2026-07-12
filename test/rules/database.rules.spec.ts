@@ -781,3 +781,25 @@ describe('emailInviteIndex rules', () => {
     )
   })
 })
+
+// emailInviteRateLimit/{uid} throttles how many email invites one account can
+// send per rolling window (see tryConsumeEmailInviteQuota in functions). Like
+// emailInviteIndex, it carries no rule of its own on purpose — a client that
+// could read or write its own counter could reset or inflate it, defeating
+// the whole point.
+describe('emailInviteRateLimit rules', () => {
+  it('is unreadable and unwritable by every client, including the owning account', async () => {
+    await seed('emailInviteRateLimit/host1', { windowStart: 0, count: 20 })
+    await assertFails(get(ref(db('host1'), 'emailInviteRateLimit/host1')))
+    await assertFails(get(ref(db(), 'emailInviteRateLimit/host1')))
+    await assertFails(
+      set(ref(db('host1'), 'emailInviteRateLimit/host1'), {
+        windowStart: 0,
+        count: 0,
+      })
+    )
+    await assertFails(
+      set(ref(db('mallory'), 'emailInviteRateLimit/host1/count'), 0)
+    )
+  })
+})

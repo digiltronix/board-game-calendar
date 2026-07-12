@@ -472,6 +472,50 @@ function hashEmail(email: string): string {
   return createHash('sha256').update(email.toLowerCase()).digest('hex')
 }
 
+// Email invites are the one path that emails (and now, via emailInviteIndex,
+// silently surfaces a gathering to) someone who never agreed to anything —
+// unlike inviting an existing friend, no relationship is required first. This
+// bounds how many a single account can send per rolling window: generous
+// enough that no real host hosting a real game night ever notices (a dozen
+// invites for one gathering, or a handful of gatherings each with a few, both
+// fit comfortably), tight enough to blunt a scripted account mass-creating
+// invites. RTDB rules can't express a rolling time window at all (there's no
+// server-time primitive in the rules language), so this has to be enforced
+// here rather than declaratively — the counter lives in emailInviteRateLimit/,
+// sealed exactly like emailInviteIndex (see database.rules.json).
+const EMAIL_INVITE_RATE_LIMIT_WINDOW_MS = 60 * 60 * 1000
+const EMAIL_INVITE_RATE_LIMIT_MAX = 20
+
+// Atomically checks and consumes one unit of a host's rolling-window email-
+// invite quota. Returns false (quota exhausted, nothing written) or true
+// (consumed). The transaction is what makes this safe under concurrent invite
+// creation — two emailInvites writes landing in the same instant can't both
+// read a stale count and each think they're under the limit.
+//
+// Known tradeoff: onGatheringEmailInvite calls this once per delivery
+// attempt, and a *retried* delivery (after a transient Resend failure — see
+// retry: true below) re-runs the whole handler, consuming quota again for
+// what's logically the same invite. Distinguishing "genuinely new invite"
+// from "retry of one already counted" needs a persisted per-invite
+// idempotency marker, which is more state than this is worth: transient
+// failures are the uncommon case, and the limit has enough headroom that a
+// few retry-inflated units don't meaningfully affect a real host.
+async function tryConsumeEmailInviteQuota(hostUid: string): Promise<boolean> {
+  const now = Date.now()
+  const result = await getDatabase()
+    .ref(`emailInviteRateLimit/${hostUid}`)
+    .transaction((current: { windowStart: number; count: number } | null) => {
+      if (!current || now - current.windowStart > EMAIL_INVITE_RATE_LIMIT_WINDOW_MS) {
+        return { windowStart: now, count: 1 }
+      }
+      if (current.count >= EMAIL_INVITE_RATE_LIMIT_MAX) {
+        return undefined // abort the transaction — no write, quota exhausted
+      }
+      return { windowStart: current.windowStart, count: current.count + 1 }
+    })
+  return result.committed
+}
+
 // Raw gathering node as read from RTDB; fields are validated by the security
 // rules but read back untyped, so narrow each one before use.
 type GatheringRecord = Record<string, unknown>
@@ -549,13 +593,27 @@ export const onGatheringEmailInvite = onValueCreated(
       )
       return
     }
+    const hostUid = gathering.host as string
+    if (!(await tryConsumeEmailInviteQuota(hostUid))) {
+      // The emailInvites write itself already succeeded (it's a normal
+      // host-only RTDB write, not rules-limited — see the comment on the rate
+      // limit constants above for why this can't be enforced declaratively).
+      // Silently dropping the send/index here — rather than rejecting the
+      // write — mirrors the invalid-email-format case above: the entry stays
+      // in emailInvites so the host doesn't lose their invite list, it just
+      // doesn't get acted on.
+      console.warn(
+        `Skipping email invite ${gatheringId}/${inviteId}: host ${hostUid} exceeded the email-invite rate limit`
+      )
+      return
+    }
     // Lets a matching verified-email sign-in find this gathering later even if
     // the recipient never clicks the Accept/Decline links below (see
     // listMyEmailInvites). Idempotent, so a retried delivery is harmless.
     await getDatabase()
       .ref(`emailInviteIndex/${hashEmail(email)}/${gatheringId}`)
       .set(true)
-    const hostName = await getProfileName(gathering.host as string)
+    const hostName = await getProfileName(hostUid)
     const datetime = formatDatetime(
       gathering.datetime as string,
       gathering.timezone as string | undefined
