@@ -1,4 +1,4 @@
-import{h as a,s as c,J as r,D as t,ah as C,S as l}from"./DYn0wXh1.js";const d=["width","height"],h=a({__name:"BGCLogoIcon",props:{size:{default:24},color:{default:"#C8860A"}},setup(n){const e=n,s=l(()=>Math.round(e.size*.8)),i=l(()=>e.color);return(u,o)=>(c(),r("svg",{width:s.value,height:n.size,viewBox:"0 0 80 100",xmlns:"http://www.w3.org/2000/svg","aria-hidden":"true",style:C({display:"inline-block",verticalAlign:"middle",fill:i.value})},[...o[0]||(o[0]=[t("circle",{cx:"40",cy:"14",r:"13"},null,-1),t("path",{d:`M 40 27
+import{h as a,s as c,J as r,D as t,ah as C,S as l}from"./LtQAdv6U.js";const d=["width","height"],h=a({__name:"BGCLogoIcon",props:{size:{default:24},color:{default:"#C8860A"}},setup(n){const e=n,s=l(()=>Math.round(e.size*.8)),i=l(()=>e.color);return(u,o)=>(c(),r("svg",{width:s.value,height:n.size,viewBox:"0 0 80 100",xmlns:"http://www.w3.org/2000/svg","aria-hidden":"true",style:C({display:"inline-block",verticalAlign:"middle",fill:i.value})},[...o[0]||(o[0]=[t("circle",{cx:"40",cy:"14",r:"13"},null,-1),t("path",{d:`M 40 27
          C 46 27, 60 29, 66 31
          C 70 32, 75 34, 76 38
          C 77 43, 72 46, 66 45
