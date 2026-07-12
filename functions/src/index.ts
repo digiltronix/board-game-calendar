@@ -668,6 +668,13 @@ export const acceptEmailInvite = onCall(
   }
 )
 
+// Nothing bounds how many gatherings can index the same address (any host can
+// create a gathering and email-invite anyone), so cap the per-call fan-out —
+// each gathering costs two reads below, and this is called on every calendar
+// page load. A legitimate user is never invited to anywhere near this many
+// gatherings at once; the cap only bites under abuse.
+const MAX_EMAIL_INVITES_PER_LOOKUP = 25
+
 // Lets a guest discover email invites without needing the exact Accept/Decline
 // link from the invite email — e.g. they signed up separately, lost the email,
 // or clicked "View on your calendar" instead. Looks up only the caller's own
@@ -687,36 +694,65 @@ export const listMyEmailInvites = onCall(
     if (!request.auth.token.email_verified) {
       throw new HttpsError('failed-precondition', 'Email address must be verified')
     }
+    const uid = request.auth.uid
     const db = getDatabase()
     const emailHash = hashEmail(userEmail)
     const indexSnap = await db.ref(`emailInviteIndex/${emailHash}`).get()
     const gatheringIds = Object.keys(
       (indexSnap.val() as Record<string, boolean> | null) ?? {}
-    )
+    ).slice(0, MAX_EMAIL_INVITES_PER_LOOKUP)
     if (!gatheringIds.length) return { invites: [] }
 
+    // Each entry is handled independently and never throws out of this
+    // function — one bad lookup (a transient self-heal delete failure, a
+    // missing profile, anything) must not blank out every other valid invite
+    // in the same batch, since Promise.all rejects as a whole on any reject.
     const invites = await Promise.all(
       gatheringIds.map(async (gatheringId) => {
-        const snap = await db.ref(`gatherings/${gatheringId}`).get()
-        const gathering = snap.val() as Record<string, unknown> | null
-        if (!gathering) {
-          // Stale pointer (gathering deleted without going through the normal
-          // emailInvites-removal path) — self-heal rather than surface it.
-          await db.ref(`emailInviteIndex/${emailHash}/${gatheringId}`).remove()
+        try {
+          const snap = await db.ref(`gatherings/${gatheringId}`).get()
+          const gathering = snap.val() as Record<string, unknown> | null
+          if (!gathering) {
+            // Stale pointer (gathering deleted without going through the
+            // normal emailInvites-removal path) — self-heal rather than
+            // surface it. Best-effort: if the cleanup write itself fails,
+            // this entry is just skipped, not the whole response.
+            await db
+              .ref(`emailInviteIndex/${emailHash}/${gatheringId}`)
+              .remove()
+              .catch(() => {})
+            return null
+          }
+          if (gathering.state === 'canceled') return null
+          const guests = (gathering.guests ?? {}) as Record<string, unknown>
+          if (uid in guests) {
+            // Already a real guest through some other path (e.g. the host
+            // separately added them via the friend picker) — the emailInvites
+            // entry is a redundant leftover. Surfacing it would let Accept/
+            // Decline here silently overwrite their existing response via
+            // acceptEmailInvite, which doesn't check for one; drop the
+            // now-pointless index entry instead of showing it.
+            await db
+              .ref(`emailInviteIndex/${emailHash}/${gatheringId}`)
+              .remove()
+              .catch(() => {})
+            return null
+          }
+          const hostName = await getProfileName(gathering.host as string)
+          return {
+            gatheringId,
+            host: hostName,
+            datetime: gathering.datetime as string,
+            timezone: gathering.timezone as string | undefined,
+            location: optionalString(gathering.location),
+            games:
+              (gathering.games as { name?: string }[] | null)
+                ?.map((g) => g.name)
+                .filter((name): name is string => Boolean(name)) ?? [],
+          }
+        } catch (err) {
+          console.warn(`listMyEmailInvites: skipping ${gatheringId}`, err)
           return null
-        }
-        if (gathering.state === 'canceled') return null
-        const hostName = await getProfileName(gathering.host as string)
-        return {
-          gatheringId,
-          host: hostName,
-          datetime: gathering.datetime as string,
-          timezone: gathering.timezone as string | undefined,
-          location: optionalString(gathering.location),
-          games:
-            (gathering.games as { name?: string }[] | null)
-              ?.map((g) => g.name)
-              .filter((name): name is string => Boolean(name)) ?? [],
         }
       })
     )
