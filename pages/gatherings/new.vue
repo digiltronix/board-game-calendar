@@ -117,15 +117,23 @@
                 type="email"
                 label="Invite by email address"
                 prepend-inner-icon="$emailOutline"
-                hint="Invite someone who doesn't have an account yet"
+                :hint="
+                  emailInviteList.length >= MAX_EMAIL_INVITES
+                    ? `Limit of ${MAX_EMAIL_INVITES} email invites per gathering reached`
+                    : `Invite someone who doesn't have an account yet`
+                "
                 persistent-hint
+                :disabled="emailInviteList.length >= MAX_EMAIL_INVITES"
                 @keydown.enter.prevent="addEmailInvite"
               />
               <v-btn
                 color="primary"
                 variant="tonal"
                 height="56"
-                :disabled="!emailInput.trim()"
+                :disabled="
+                  !emailInput.trim() ||
+                  emailInviteList.length >= MAX_EMAIL_INVITES
+                "
                 class="flex-shrink-0"
                 @click="addEmailInvite"
               >
@@ -261,19 +269,37 @@ const emailInput = ref('')
 const emailInviteList = ref<string[]>([])
 let existingEmailInvitesByKey: Record<string, string> = {}
 
+// Mirrors EMAIL_INVITE_RATE_LIMIT_MAX in functions/src/index.ts — that limit
+// is per host per hour, not per gathering, so it can't be enforced here
+// exactly, but capping one gathering's own list at the same number means a
+// single big invite round can never by itself exceed it and get some invites
+// silently dropped server-side with no feedback.
+const MAX_EMAIL_INVITES = 20
+
 function isValidEmail(email: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
 }
 
-// Returns false only when the field holds an invalid address (an empty field
-// and a duplicate are both fine). Also called on submit, so an address typed
-// into the field but never "Add"ed isn't silently dropped from the gathering.
+// Returns false only when the field holds an invalid address or the list is
+// already full (an empty field and a duplicate are both fine). Also called on
+// submit, so an address typed into the field but never "Add"ed isn't silently
+// dropped from the gathering.
 function addEmailInvite(): boolean {
   const email = emailInput.value.trim().toLowerCase()
   if (!email) return true
   if (!isValidEmail(email)) {
     snackbar.value?.showSnackbarWithMessage(
       'Please enter a valid email address.',
+      true
+    )
+    return false
+  }
+  if (
+    !emailInviteList.value.includes(email) &&
+    emailInviteList.value.length >= MAX_EMAIL_INVITES
+  ) {
+    snackbar.value?.showSnackbarWithMessage(
+      `You can invite up to ${MAX_EMAIL_INVITES} people by email per gathering.`,
       true
     )
     return false
