@@ -163,7 +163,11 @@
               "
               persistent-hint
               class="mb-6"
-            />
+            >
+              <template #item="{ props: itemProps, item }">
+                <v-list-item v-bind="itemProps" :subtitle="item.subtitle" />
+              </template>
+            </v-select>
             <v-btn
               type="submit"
               block
@@ -187,6 +191,7 @@ import { ref, computed, onMounted } from 'vue'
 import { ref as dbRef, get, push, set, update, remove } from 'firebase/database'
 import Snackbar from '~/components/Snackbar.vue'
 import helpers from '~/helpers/helpers'
+import { buildGameItems } from '~/helpers/gatherings'
 import { addressToLocation, savedLocationPlan } from '~/helpers/locations'
 import routes from '~/helpers/routes'
 import type {
@@ -246,7 +251,9 @@ const maxGuests = ref<number | string>(0)
 const selectedGuests = ref<string[]>([])
 const selectedGameIds = ref<string[]>([])
 const friendItems = ref<{ title: string; value: string }[]>([])
-const gameItems = ref<{ title: string; value: string }[]>([])
+const gameItems = ref<{ title: string; subtitle?: string; value: string }[]>(
+  []
+)
 let gamesById: Record<string, Game> = {}
 
 // Email invite state (non-user invitees)
@@ -326,11 +333,26 @@ onMounted(async () => {
       maxGuests.value = maxPeople - 1
 
     const friendIds: Record<string, true> | null = friendsSnap.val()
+    // Also read each friend's collection (mutual friends can, per the
+    // security rules) so the Games select can offer their games too.
+    const friendCollections: { name: string; games: Game[] }[] = []
     if (friendIds) {
       const friendEntries = await Promise.all(
         Object.keys(friendIds).map(async (friendId) => {
-          const nameSnap = await get(dbRef(db, `profiles/${friendId}/name`))
-          return { title: nameSnap.val() ?? 'Unknown player', value: friendId }
+          const [nameSnap, friendCollectionSnap] = await Promise.all([
+            get(dbRef(db, `profiles/${friendId}/name`)),
+            get(dbRef(db, `users/${friendId}/collection`)),
+          ])
+          const name = nameSnap.val() ?? 'Unknown player'
+          const friendCollection: Record<string, Game> | null =
+            friendCollectionSnap.val()
+          if (friendCollection) {
+            friendCollections.push({
+              name,
+              games: Object.values(friendCollection),
+            })
+          }
+          return { title: name, value: friendId }
         })
       )
       friendItems.value = friendEntries.sort((a, b) =>
@@ -339,14 +361,12 @@ onMounted(async () => {
     }
 
     const collection: Record<string, Game> | null = collectionSnap.val()
-    if (collection) {
-      gamesById = Object.fromEntries(
-        Object.values(collection).map((game) => [game.id, game])
-      )
-      gameItems.value = Object.values(collection)
-        .map((game) => ({ title: game.name, value: game.id }))
-        .sort((a, b) => a.title.localeCompare(b.title))
-    }
+    const built = buildGameItems(
+      collection ? Object.values(collection) : [],
+      friendCollections
+    )
+    gamesById = built.gamesById
+    gameItems.value = built.items
 
     if (editId) {
       // non-participants get a permission error rather than a null read
