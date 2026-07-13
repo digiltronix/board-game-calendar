@@ -427,7 +427,7 @@ function buildIcs(event: CalendarEvent): string {
     'CALSCALE:GREGORIAN',
     'METHOD:PUBLISH',
     'BEGIN:VEVENT',
-    `UID:${event.gatheringId}@bgc.jasonsuttles.dev`,
+    `UID:${escapeIcs(event.gatheringId)}@bgc.jasonsuttles.dev`,
     `DTSTAMP:${toIcsUtc(new Date())}`,
     `DTSTART:${toIcsUtc(new Date(event.datetime))}`,
     `DTEND:${toIcsUtc(eventEnd(event.datetime))}`,
@@ -455,8 +455,9 @@ function calendarLinkHtml(event: CalendarEvent): string {
 // Accept / Decline buttons that deep-link into the app (the user signs in if
 // needed, then the RSVP is applied on the calendar page).
 function rsvpButtonsHtml(gatheringId: string): string {
-  const accept = `${APP_URL}/calendar?id=${gatheringId}&respond=accepted`
-  const decline = `${APP_URL}/calendar?id=${gatheringId}&respond=declined`
+  const id = encodeURIComponent(gatheringId)
+  const accept = `${APP_URL}/calendar?id=${id}&respond=accepted`
+  const decline = `${APP_URL}/calendar?id=${id}&respond=declined`
   return `<p>
   <a href="${accept}" style="display:inline-block;padding:10px 18px;margin-right:8px;background:#55B855;color:#100A04;text-decoration:none;border-radius:8px;font-weight:600;">Accept</a>
   <a href="${decline}" style="display:inline-block;padding:10px 18px;background:#E05252;color:#100A04;text-decoration:none;border-radius:8px;font-weight:600;">Decline</a>
