@@ -1089,7 +1089,8 @@ function parseSignedRequest(
 
 // Erase everything we hold for a user: their own subtrees plus the references
 // other members hold to them (reverse friend links, guest entries, pending
-// requests, blocks). Hosted gatherings are removed entirely. Applied as one
+// requests, blocks, email invites addressed to them on other hosts'
+// gatherings). Hosted gatherings are removed entirely. Applied as one
 // multi-path update; the caller then deletes the auth account.
 async function deleteUserData(uid: string): Promise<void> {
   const db = getDatabase()
@@ -1145,6 +1146,34 @@ async function deleteUserData(uid: string): Promise<void> {
   for (const [ownerUid, blockedMap] of Object.entries(allBlocked)) {
     if (ownerUid !== uid && blockedMap && uid in blockedMap) {
       updates[`blocked/${ownerUid}/${uid}`] = null
+    }
+  }
+
+  // Email invites addressed to this account's own verified email, sitting on
+  // gatherings hosted by *other* users, also need to go — otherwise the
+  // address (and its emailInviteIndex entry) outlives the account it was
+  // tied to. Mirrors the lookup listMyEmailInvites does, minus the fan-out
+  // cap (this runs once per deletion, not per page load).
+  const email = (await getAuth().getUser(uid)).email?.toLowerCase()
+  if (email) {
+    const emailHash = hashEmail(email)
+    const indexSnap = await db.ref(`emailInviteIndex/${emailHash}`).get()
+    const invitedGatheringIds = Object.keys(
+      (indexSnap.val() as Record<string, boolean> | null) ?? {}
+    )
+    for (const gid of invitedGatheringIds) {
+      if (updates[`gatherings/${gid}`] === null) continue // whole gathering already going away above
+      const emailInvitesSnap = await db
+        .ref(`gatherings/${gid}/emailInvites`)
+        .get()
+      const emailInvites =
+        (emailInvitesSnap.val() as Record<string, string> | null) ?? {}
+      for (const [inviteId, inviteEmail] of Object.entries(emailInvites)) {
+        if (inviteEmail.toLowerCase() === email) {
+          updates[`gatherings/${gid}/emailInvites/${inviteId}`] = null
+        }
+      }
+      updates[`emailInviteIndex/${emailHash}/${gid}`] = null
     }
   }
 
