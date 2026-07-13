@@ -38,6 +38,7 @@ jobs:
           G_API_KEY: ${{ secrets.G_API_KEY }}
           G_APP_ID: ${{ secrets.G_APP_ID }}
           RECAPTCHA_SITE_KEY: ${{ secrets.RECAPTCHA_SITE_KEY }}
+          FCM_VAPID_KEY: ${{ secrets.FCM_VAPID_KEY }}
 
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v4

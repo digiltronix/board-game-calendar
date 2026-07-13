@@ -23,3 +23,11 @@ auth session are strictly-necessary and stay on regardless.
 ## 02-fireauth.client.ts
 
 Runs after `01-firebase.client.ts`. Waits for Firebase Auth to resolve the initial auth state before the app renders, ensuring `useUserStore().user` is populated on first load.
+
+## 04-service-worker.client.ts
+
+Registers `public/firebase-messaging-sw.js` unconditionally on load via `useServiceWorker()` (`composables/useServiceWorker.ts`), unrelated to cookie consent — a controlling service worker is one of the Android/Chrome install-prompt criteria (see `composables/useInstallPrompt.ts`), so this needs to happen before the visitor ever opts into anything. The same registration is reused by `useNotifications.ts` when the user later enables push notifications on `/profile`. Also calls `useNotifications()` so the foreground push listener reattaches on boot when permission was already granted in an earlier session, not only while the user happens to be on `/profile`.
+
+## 05-install-prompt.client.ts
+
+Attaches the `beforeinstallprompt`/`appinstalled` listeners backing `useInstallPrompt.ts` as early as possible, since Chrome fires `beforeinstallprompt` once per qualifying page load rather than on demand.

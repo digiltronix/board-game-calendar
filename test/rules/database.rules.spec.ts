@@ -352,6 +352,22 @@ describe('private profile (users/) rules', () => {
     await assertFails(get(ref(db('bob'), 'users/alice/savedLocations')))
   })
 
+  it('validates fcmTokens entries and keeps them owner-only', async () => {
+    await assertSucceeds(
+      set(ref(db('alice'), 'users/alice/fcmTokens/token123'), Date.now())
+    )
+    await assertFails(
+      set(ref(db('alice'), 'users/alice/fcmTokens/token123'), 'not-a-number')
+    )
+    await assertFails(
+      set(ref(db('alice'), 'users/alice/fcmTokens/token123'), -1)
+    )
+    await assertFails(
+      set(ref(db('bob'), 'users/alice/fcmTokens/token999'), Date.now())
+    )
+    await assertFails(get(ref(db('bob'), 'users/alice/fcmTokens')))
+  })
+
   it('allows the atomic profile save across users/ and profiles/', async () => {
     await assertSucceeds(
       update(ref(alice()), {

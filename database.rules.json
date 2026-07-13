@@ -40,6 +40,11 @@
             ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 200"
           }
         },
+        "fcmTokens": {
+          "$token": {
+            ".validate": "newData.isNumber() && newData.val() > 0"
+          }
+        },
         "collection": {
           ".read": "$uid === auth.uid || (root.child('users').child(auth.uid).child('friends').child($uid).val() === true && root.child('users').child($uid).child('friends').child(auth.uid).val() === true)",
           "$pushId": {
