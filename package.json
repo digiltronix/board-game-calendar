@@ -47,7 +47,7 @@
     "lightningcss": "^1.32.0",
     "lint-staged": "^17.0.8",
     "nuxt": "^4.4.8",
-    "pinia": "^3.0.4",
+    "pinia": "^4.0.1",
     "playwright": "^1.61.1",
     "prettier": "^3.9.5",
     "sass-embedded": "^1.100.0",
