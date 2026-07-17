@@ -26,6 +26,7 @@ export default defineNuxtConfig({
         { charset: 'utf-8' },
         { name: 'viewport', content: 'width=device-width, initial-scale=1' },
         { name: 'theme-color', content: '#0E1A12' },
+        { name: 'mobile-web-app-capable', content: 'yes' },
         {
           name: 'description',
           content:
@@ -42,6 +43,14 @@ export default defineNuxtConfig({
           rel: 'icon',
           type: 'image/svg+xml',
           href: `${process.env.BASE_URL ?? '/'}favicon.svg`,
+        },
+        {
+          rel: 'manifest',
+          href: `${process.env.BASE_URL ?? '/'}manifest.webmanifest`,
+        },
+        {
+          rel: 'apple-touch-icon',
+          href: `${process.env.BASE_URL ?? '/'}icons/icon-192.png`,
         },
         { rel: 'preconnect', href: 'https://identitytoolkit.googleapis.com' },
         {
@@ -135,6 +144,7 @@ export default defineNuxtConfig({
   runtimeConfig: {
     public: {
       recaptchaSiteKey: process.env.RECAPTCHA_SITE_KEY ?? '',
+      fcmVapidKey: process.env.FCM_VAPID_KEY ?? '',
       screenshotMode: SCREENSHOT_MODE,
     },
   },
@@ -154,6 +164,7 @@ export default defineNuxtConfig({
             'firebase/auth': mockAlias('firebase-auth.ts'),
             'firebase/database': mockAlias('firebase-database.ts'),
             'firebase/functions': mockAlias('firebase-functions.ts'),
+            'firebase/messaging': mockAlias('firebase-messaging.ts'),
           }
         : {},
     },

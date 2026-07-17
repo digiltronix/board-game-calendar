@@ -45,6 +45,14 @@
               necessary to run the service.
             </li>
             <li>
+              <strong>Push notification token (only if you enable it).</strong>
+              If you turn on notifications for this app or device, we store a
+              Firebase Cloud Messaging registration token tied to your account,
+              used only to deliver the same alerts (friend requests, gathering
+              invites and updates) that we'd otherwise email you. You can turn
+              this off at any time on your profile page.
+            </li>
+            <li>
               <strong>Analytics (only if you agree).</strong> If you accept on
               the cookie banner, Firebase Analytics records page views, your
               device and browser type, approximate (city-level) location, and a
@@ -66,7 +74,8 @@
             <li>To run the service — accounts, collections, friends, gatherings.</li>
             <li>
               To send transactional emails (friend requests, gathering invites,
-              and confirmations/changes) via our email provider, Resend.
+              and confirmations/changes) via our email provider, Resend, and
+              matching push notifications if you've enabled them.
             </li>
             <li>To keep the service secure and prevent abuse.</li>
             <li>

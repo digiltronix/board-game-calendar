@@ -101,6 +101,52 @@
               </div>
             </div>
           </div>
+
+          <template v-if="canInstall || notificationsSupported">
+            <v-divider class="my-4" />
+            <div class="section-label mb-3">App</div>
+            <div class="app-actions">
+              <v-btn
+                v-if="canInstall"
+                color="primary"
+                variant="text"
+                prepend-icon="$cellphoneArrowDown"
+                @click="installApp"
+              >
+                Install app
+              </v-btn>
+
+              <v-btn
+                v-if="notificationsSupported && permission === 'default'"
+                color="primary"
+                variant="text"
+                :loading="enabling"
+                prepend-icon="$bellOutline"
+                @click="enableNotifications"
+              >
+                Enable notifications
+              </v-btn>
+              <div v-else-if="notificationsEnabled" class="app-status">
+                <v-icon color="success" size="20">$bellRingOutline</v-icon>
+                <span>Notifications on</span>
+                <v-btn
+                  variant="text"
+                  size="small"
+                  color="error"
+                  @click="disableNotifications"
+                >
+                  Turn off
+                </v-btn>
+              </div>
+              <div
+                v-else-if="notificationsSupported && permission === 'denied'"
+                class="app-status app-status--muted"
+              >
+                <v-icon size="20">$bellOutline</v-icon>
+                <span>Notifications blocked — enable them in your browser settings</span>
+              </div>
+            </div>
+          </template>
         </v-card-text>
       </v-card>
       <Snackbar ref="snackbar" />
@@ -135,6 +181,16 @@ const labels = {
   address: 'Address',
   maxPeople: 'Max people at residence',
 }
+
+const { canInstall, promptInstall } = useInstallPrompt()
+const {
+  permission,
+  enabled: notificationsEnabled,
+  enabling,
+  supported: notificationsSupported,
+  enable: enableNotificationsRequest,
+  disable: disableNotificationsRequest,
+} = useNotifications()
 
 const userStore = useUserStore()
 const nuxtApp = useNuxtApp()
@@ -270,6 +326,47 @@ async function updateProfile() {
     )
   }
 }
+
+async function installApp() {
+  const outcome = await promptInstall()
+  if (outcome === 'accepted') {
+    snackbar.value?.showSnackbarWithMessage('App installed', false)
+  }
+}
+
+async function enableNotifications() {
+  try {
+    const ok = await enableNotificationsRequest()
+    snackbar.value?.showSnackbarWithMessage(
+      ok
+        ? 'Notifications enabled'
+        : 'Notifications permission was not granted',
+      !ok
+    )
+  } catch (err) {
+    snackbar.value?.showSnackbarWithMessage(
+      helpers.handleError(err).message,
+      true
+    )
+  }
+}
+
+async function disableNotifications() {
+  try {
+    const ok = await disableNotificationsRequest()
+    snackbar.value?.showSnackbarWithMessage(
+      ok
+        ? 'Notifications turned off'
+        : "Couldn't turn off notifications — try again",
+      !ok
+    )
+  } catch (err) {
+    snackbar.value?.showSnackbarWithMessage(
+      helpers.handleError(err).message,
+      true
+    )
+  }
+}
 </script>
 
 <style scoped>
@@ -300,6 +397,23 @@ async function updateProfile() {
   font-family: 'Lora', Georgia, serif;
   font-size: 1rem;
   color: rgba(240, 223, 196, 0.92);
+}
+.app-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+.app-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: 'Lora', Georgia, serif;
+  font-size: 0.95rem;
+  color: rgba(240, 223, 196, 0.92);
+}
+.app-status--muted {
+  color: rgba(240, 223, 196, 0.7);
 }
 .address-link {
   color: rgba(200, 134, 10, 0.85);

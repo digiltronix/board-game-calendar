@@ -10,6 +10,7 @@ import { defineSecret } from 'firebase-functions/params'
 import { initializeApp } from 'firebase-admin/app'
 import { getAuth } from 'firebase-admin/auth'
 import { getDatabase } from 'firebase-admin/database'
+import { getMessaging } from 'firebase-admin/messaging'
 import { parseString } from 'xml2js'
 import { promisify } from 'util'
 import {
@@ -470,6 +471,57 @@ async function getProfileName(uid: string): Promise<string> {
   return typeof val === 'string' ? val : 'Someone'
 }
 
+// Push is a best-effort companion to the email notifications above, not a
+// replacement — it never throws (everything below is caught internally), so
+// callers just `await` it with no boilerplate and it can never affect the
+// email retry logic. Reads users/{uid}/fcmTokens (see useNotifications.ts on
+// the client and the fcmTokens rule in database.rules.json), fans the same
+// notification out to every token on file for that account, and prunes any
+// token FCM reports as no-longer-registered (uninstalled app, revoked
+// permission, expired token) so the list doesn't grow unboundedly stale.
+async function sendPushToUser(
+  uid: string,
+  notification: { title: string; body: string; link: string }
+): Promise<void> {
+  try {
+    const tokensSnap = await getDatabase().ref(`users/${uid}/fcmTokens`).get()
+    const tokensVal = tokensSnap.val() as Record<string, number> | null
+    const tokens = tokensVal ? Object.keys(tokensVal) : []
+    if (tokens.length === 0) return
+
+    const response = await getMessaging().sendEachForMulticast({
+      tokens,
+      notification: { title: notification.title, body: notification.body },
+      webpush: { fcmOptions: { link: notification.link } },
+    })
+
+    const staleTokens = response.responses
+      .map((r, i) => (!r.success && isUnregisteredTokenError(r.error) ? tokens[i] : null))
+      .filter((t): t is string => t !== null)
+    if (staleTokens.length > 0) {
+      await getDatabase()
+        .ref(`users/${uid}/fcmTokens`)
+        .update(Object.fromEntries(staleTokens.map((t) => [t, null])))
+    }
+  } catch (err) {
+    console.error(`Push failed for ${uid}:`, err)
+  }
+}
+
+// Only the two codes FCM documents as meaning "this specific token is dead"
+// — NOT 'messaging/invalid-argument', which is a generic malformed-request
+// error that can also mean a bad payload (title/body/link), and would
+// otherwise wrongly prune every token in the batch (sendEachForMulticast
+// sends one shared payload to all of them) for a payload problem that has
+// nothing to do with any individual token's validity.
+function isUnregisteredTokenError(error: unknown): boolean {
+  const code = (error as { code?: string } | undefined)?.code
+  return (
+    code === 'messaging/registration-token-not-registered' ||
+    code === 'messaging/invalid-registration-token'
+  )
+}
+
 // Key for emailInviteIndex/{key}/{gatheringId}. A hash rather than the raw
 // address both because RTDB keys can't contain '.' and so the index doesn't
 // hold plaintext emails — see the "no rules" note on the index itself below.
@@ -848,7 +900,16 @@ export const onFriendRequest = onValueCreated(
         .catch(() => null),
       getProfileName(fromUid),
     ])
-    if (!toUser?.email) return
+    const pushNotification = {
+      title: 'New friend request',
+      body: `${fromName} sent you a friend request`,
+      link: `${APP_URL}/friends`,
+    }
+    if (!toUser?.email) {
+      // Nothing left to retry on this path, so it's safe to push now.
+      await sendPushToUser(toUid, pushNotification)
+      return
+    }
     const safeName = escapeHtml(fromName)
     const result = await sendEmail(
       toUser.email,
@@ -858,9 +919,13 @@ export const onFriendRequest = onValueCreated(
 <p><a href="${APP_URL}/friends">View your friend requests</a></p>`
     )
     if (result === 'retry')
+      // Don't push yet — this event will be redelivered and this whole
+      // handler reruns; pushing here too would duplicate it on every retry.
       throw new Error(
         `Transient failure sending friend request email to ${toUser.email}`
       )
+    // This attempt is final (email sent or permanently failed) — push exactly once.
+    await sendPushToUser(toUid, pushNotification)
   }
 )
 
@@ -885,7 +950,6 @@ export const onGatheringInvite = onValueWritten(
         .catch(() => null),
       getDatabase().ref(`gatherings/${gatheringId}`).get(),
     ])
-    if (!guestUser?.email) return
     const gathering = gatheringSnap.val() as Record<string, unknown> | null
     if (!gathering) return
     const hostName = await getProfileName(gathering.host as string)
@@ -893,6 +957,16 @@ export const onGatheringInvite = onValueWritten(
       gathering.datetime as string,
       gathering.timezone as string
     )
+    const pushNotification = {
+      title: "You're invited to a board game night!",
+      body: `${hostName} invited you to game night on ${datetime}`,
+      link: `${APP_URL}/calendar`,
+    }
+    if (!guestUser?.email) {
+      // Nothing left to retry on this path, so it's safe to push now.
+      await sendPushToUser(guestUid, pushNotification)
+      return
+    }
     const calEvent = toCalendarEvent(gatheringId, gathering, hostName)
     const result = await sendEmail(
       guestUser.email,
@@ -906,9 +980,13 @@ ${calendarLinkHtml(calEvent)}`,
       [icsAttachment(calEvent)]
     )
     if (result === 'retry')
+      // Don't push yet — this event will be redelivered and this whole
+      // handler reruns; pushing here too would duplicate it on every retry.
       throw new Error(
         `Transient failure sending invite email to ${guestUser.email}`
       )
+    // This attempt is final (email sent or permanently failed) — push exactly once.
+    await sendPushToUser(guestUid, pushNotification)
   }
 )
 
@@ -947,14 +1025,26 @@ export const onGuestResponse = onValueWritten(
         .catch(() => null),
       getProfileName(guestUid),
     ])
-    if (!hostUser?.email) return
     const datetime = formatDatetime(
       gathering.datetime as string,
       gathering.timezone as string | undefined
     )
+    const accepted = after === 'accepted'
+    const hostUid = gathering.host as string
+    const pushNotification = {
+      title: accepted
+        ? `${guestName} is in for game night`
+        : `${guestName} can't make game night`,
+      body: `Game night on ${datetime}`,
+      link: `${APP_URL}/calendar`,
+    }
+    if (!hostUser?.email) {
+      // Nothing left to retry on this path, so it's safe to push now.
+      await sendPushToUser(hostUid, pushNotification)
+      return
+    }
     const safeGuest = escapeHtml(guestName)
     const safeDatetime = escapeHtml(datetime)
-    const accepted = after === 'accepted'
     const result = await sendEmail(
       hostUser.email,
       accepted
@@ -965,9 +1055,13 @@ export const onGuestResponse = onValueWritten(
 <p><a href="${APP_URL}/calendar">View your calendar</a></p>`
     )
     if (result === 'retry')
+      // Don't push yet — this event will be redelivered and this whole
+      // handler reruns; pushing here too would duplicate it on every retry.
       throw new Error(
         `Transient failure sending RSVP email to ${hostUser.email}`
       )
+    // This attempt is final (email sent or permanently failed) — push exactly once.
+    await sendPushToUser(hostUid, pushNotification)
   }
 )
 
@@ -1010,6 +1104,18 @@ export const onGatheringStateChange = onValueUpdated(
       newState === 'confirmed'
         ? `Game night confirmed: ${datetime}`
         : `Game night canceled: ${datetime}`
+    // Pushed by uid directly (unlike the email loop below, which needs each
+    // guest's auth record for their address) — a guest with no token on file
+    // just gets no push, same as a guest with no email gets no email.
+    await Promise.all(
+      notifyUids.map((uid) =>
+        sendPushToUser(uid, {
+          title: subject,
+          body: `Hosted by ${hostName}`,
+          link: `${APP_URL}/calendar`,
+        })
+      )
+    )
     const safeHost = escapeHtml(hostName)
     const safeDatetime = escapeHtml(datetime)
     const calEvent = toCalendarEvent(gatheringId, gathering, hostName)
