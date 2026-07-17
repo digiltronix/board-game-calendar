@@ -366,8 +366,11 @@ describe('private profile (users/) rules', () => {
       set(ref(db('bob'), 'users/alice/fcmTokens/token999'), Date.now())
     )
     await assertFails(get(ref(db('bob'), 'users/alice/fcmTokens')))
+    // 600 chars clears the rule's 500-char bound but stays well under the
+    // RTDB client SDK's own hard 768-byte total-path ceiling (which would
+    // otherwise throw synchronously before the rule is even evaluated).
     await assertFails(
-      set(ref(db('alice'), `users/alice/fcmTokens/${'x'.repeat(4097)}`), Date.now())
+      set(ref(db('alice'), `users/alice/fcmTokens/${'x'.repeat(600)}`), Date.now())
     )
   })
 

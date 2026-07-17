@@ -42,7 +42,7 @@
         },
         "fcmTokens": {
           "$token": {
-            ".validate": "newData.isNumber() && newData.val() > 0 && $token.length <= 4096"
+            ".validate": "newData.isNumber() && newData.val() > 0 && $token.length <= 500"
           }
         },
         "collection": {
