@@ -3,7 +3,12 @@
 // Android/Chrome's install-prompt criteria — a controlling service worker is
 // one of them). Firebase config isn't build-processed here (public/ files
 // are copied as-is, not run through Vite), so the client passes it as query
-// params when it registers this file — see composables/useNotifications.ts.
+// params when it registers this file — see composables/useServiceWorker.ts.
+//
+// The SDK version below is pinned separately from package.json's `firebase`
+// dependency (this file loads it from a CDN, not the npm package) — there's
+// no build step linking the two, so bump both together by hand when either
+// changes.
 importScripts(
   'https://www.gstatic.com/firebasejs/12.16.0/firebase-app-compat.js'
 )
@@ -23,10 +28,14 @@ const firebaseConfig = {
   appId: params.get('appId'),
 }
 
-// Registration happens unconditionally on every page load (for install-
-// prompt eligibility), before any Messaging API is ever touched — so
-// apiKey/appId are only present once a client has actually called
-// getToken(), which is itself gated behind the user opting in on /profile.
+// This registers unconditionally on every page load, for every visitor, so
+// that the app meets the install-prompt criteria (see
+// plugins/04-service-worker.client.ts) — apiKey/appId are present from the
+// very first registration, not gated on notification opt-in. That's fine:
+// initializeApp()/messaging() below only construct local objects and attach
+// a 'push' listener — no network call, no Firebase Installation, and no data
+// collection happens until a client actually calls getToken() (which *is*
+// gated behind the user opting in on /profile — see useNotifications.ts).
 if (firebaseConfig.apiKey && firebaseConfig.appId) {
   firebase.initializeApp(firebaseConfig)
 

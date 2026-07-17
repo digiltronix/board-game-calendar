@@ -18,6 +18,8 @@ export function useServiceWorker() {
   function register(): Promise<ServiceWorkerRegistration | null> {
     if (registrationPromise) return registrationPromise
     if (typeof navigator === 'undefined' || !('serviceWorker' in navigator)) {
+      // Permanently unsupported in this browser — safe to cache forever,
+      // unlike a registration failure below (which may be transient).
       registrationPromise = Promise.resolve(null)
       return registrationPromise
     }
@@ -30,6 +32,11 @@ export function useServiceWorker() {
       .register(`${app.baseURL}firebase-messaging-sw.js?${params.toString()}`)
       .catch((err) => {
         console.error('Service worker registration failed', err)
+        // Don't leave the failed attempt cached — a transient failure (flaky
+        // network fetching the SW script, storage pressure) would otherwise
+        // permanently disable push/install for the rest of the session, since
+        // every later caller just gets back this same resolved-to-null promise.
+        registrationPromise = null
         return null
       })
     return registrationPromise

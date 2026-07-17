@@ -353,8 +353,13 @@ async function enableNotifications() {
 
 async function disableNotifications() {
   try {
-    await disableNotificationsRequest()
-    snackbar.value?.showSnackbarWithMessage('Notifications turned off', false)
+    const ok = await disableNotificationsRequest()
+    snackbar.value?.showSnackbarWithMessage(
+      ok
+        ? 'Notifications turned off'
+        : "Couldn't turn off notifications — try again",
+      !ok
+    )
   } catch (err) {
     snackbar.value?.showSnackbarWithMessage(
       helpers.handleError(err).message,

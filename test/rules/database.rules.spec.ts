@@ -366,6 +366,9 @@ describe('private profile (users/) rules', () => {
       set(ref(db('bob'), 'users/alice/fcmTokens/token999'), Date.now())
     )
     await assertFails(get(ref(db('bob'), 'users/alice/fcmTokens')))
+    await assertFails(
+      set(ref(db('alice'), `users/alice/fcmTokens/${'x'.repeat(4097)}`), Date.now())
+    )
   })
 
   it('allows the atomic profile save across users/ and profiles/', async () => {

@@ -472,7 +472,8 @@ async function getProfileName(uid: string): Promise<string> {
 }
 
 // Push is a best-effort companion to the email notifications above, not a
-// replacement — callers wrap this in .catch() and never let it affect the
+// replacement — it never throws (everything below is caught internally), so
+// callers just `await` it with no boilerplate and it can never affect the
 // email retry logic. Reads users/{uid}/fcmTokens (see useNotifications.ts on
 // the client and the fcmTokens rule in database.rules.json), fans the same
 // notification out to every token on file for that account, and prunes any
@@ -482,33 +483,42 @@ async function sendPushToUser(
   uid: string,
   notification: { title: string; body: string; link: string }
 ): Promise<void> {
-  const tokensSnap = await getDatabase().ref(`users/${uid}/fcmTokens`).get()
-  const tokensVal = tokensSnap.val() as Record<string, number> | null
-  const tokens = tokensVal ? Object.keys(tokensVal) : []
-  if (tokens.length === 0) return
+  try {
+    const tokensSnap = await getDatabase().ref(`users/${uid}/fcmTokens`).get()
+    const tokensVal = tokensSnap.val() as Record<string, number> | null
+    const tokens = tokensVal ? Object.keys(tokensVal) : []
+    if (tokens.length === 0) return
 
-  const response = await getMessaging().sendEachForMulticast({
-    tokens,
-    notification: { title: notification.title, body: notification.body },
-    webpush: { fcmOptions: { link: notification.link } },
-  })
+    const response = await getMessaging().sendEachForMulticast({
+      tokens,
+      notification: { title: notification.title, body: notification.body },
+      webpush: { fcmOptions: { link: notification.link } },
+    })
 
-  const staleTokens = response.responses
-    .map((r, i) => (!r.success && isUnregisteredTokenError(r.error) ? tokens[i] : null))
-    .filter((t): t is string => t !== null)
-  if (staleTokens.length > 0) {
-    await getDatabase()
-      .ref(`users/${uid}/fcmTokens`)
-      .update(Object.fromEntries(staleTokens.map((t) => [t, null])))
+    const staleTokens = response.responses
+      .map((r, i) => (!r.success && isUnregisteredTokenError(r.error) ? tokens[i] : null))
+      .filter((t): t is string => t !== null)
+    if (staleTokens.length > 0) {
+      await getDatabase()
+        .ref(`users/${uid}/fcmTokens`)
+        .update(Object.fromEntries(staleTokens.map((t) => [t, null])))
+    }
+  } catch (err) {
+    console.error(`Push failed for ${uid}:`, err)
   }
 }
 
+// Only the two codes FCM documents as meaning "this specific token is dead"
+// — NOT 'messaging/invalid-argument', which is a generic malformed-request
+// error that can also mean a bad payload (title/body/link), and would
+// otherwise wrongly prune every token in the batch (sendEachForMulticast
+// sends one shared payload to all of them) for a payload problem that has
+// nothing to do with any individual token's validity.
 function isUnregisteredTokenError(error: unknown): boolean {
   const code = (error as { code?: string } | undefined)?.code
   return (
     code === 'messaging/registration-token-not-registered' ||
-    code === 'messaging/invalid-registration-token' ||
-    code === 'messaging/invalid-argument'
+    code === 'messaging/invalid-registration-token'
   )
 }
 
@@ -890,12 +900,16 @@ export const onFriendRequest = onValueCreated(
         .catch(() => null),
       getProfileName(fromUid),
     ])
-    await sendPushToUser(toUid, {
+    const pushNotification = {
       title: 'New friend request',
       body: `${fromName} sent you a friend request`,
       link: `${APP_URL}/friends`,
-    }).catch((err) => console.error(`Push failed for ${toUid}:`, err))
-    if (!toUser?.email) return
+    }
+    if (!toUser?.email) {
+      // Nothing left to retry on this path, so it's safe to push now.
+      await sendPushToUser(toUid, pushNotification)
+      return
+    }
     const safeName = escapeHtml(fromName)
     const result = await sendEmail(
       toUser.email,
@@ -905,9 +919,13 @@ export const onFriendRequest = onValueCreated(
 <p><a href="${APP_URL}/friends">View your friend requests</a></p>`
     )
     if (result === 'retry')
+      // Don't push yet — this event will be redelivered and this whole
+      // handler reruns; pushing here too would duplicate it on every retry.
       throw new Error(
         `Transient failure sending friend request email to ${toUser.email}`
       )
+    // This attempt is final (email sent or permanently failed) — push exactly once.
+    await sendPushToUser(toUid, pushNotification)
   }
 )
 
@@ -939,12 +957,16 @@ export const onGatheringInvite = onValueWritten(
       gathering.datetime as string,
       gathering.timezone as string
     )
-    await sendPushToUser(guestUid, {
+    const pushNotification = {
       title: "You're invited to a board game night!",
       body: `${hostName} invited you to game night on ${datetime}`,
       link: `${APP_URL}/calendar`,
-    }).catch((err) => console.error(`Push failed for ${guestUid}:`, err))
-    if (!guestUser?.email) return
+    }
+    if (!guestUser?.email) {
+      // Nothing left to retry on this path, so it's safe to push now.
+      await sendPushToUser(guestUid, pushNotification)
+      return
+    }
     const calEvent = toCalendarEvent(gatheringId, gathering, hostName)
     const result = await sendEmail(
       guestUser.email,
@@ -958,9 +980,13 @@ ${calendarLinkHtml(calEvent)}`,
       [icsAttachment(calEvent)]
     )
     if (result === 'retry')
+      // Don't push yet — this event will be redelivered and this whole
+      // handler reruns; pushing here too would duplicate it on every retry.
       throw new Error(
         `Transient failure sending invite email to ${guestUser.email}`
       )
+    // This attempt is final (email sent or permanently failed) — push exactly once.
+    await sendPushToUser(guestUid, pushNotification)
   }
 )
 
@@ -1004,16 +1030,19 @@ export const onGuestResponse = onValueWritten(
       gathering.timezone as string | undefined
     )
     const accepted = after === 'accepted'
-    await sendPushToUser(gathering.host as string, {
+    const hostUid = gathering.host as string
+    const pushNotification = {
       title: accepted
         ? `${guestName} is in for game night`
         : `${guestName} can't make game night`,
       body: `Game night on ${datetime}`,
       link: `${APP_URL}/calendar`,
-    }).catch((err) =>
-      console.error(`Push failed for ${gathering.host}:`, err)
-    )
-    if (!hostUser?.email) return
+    }
+    if (!hostUser?.email) {
+      // Nothing left to retry on this path, so it's safe to push now.
+      await sendPushToUser(hostUid, pushNotification)
+      return
+    }
     const safeGuest = escapeHtml(guestName)
     const safeDatetime = escapeHtml(datetime)
     const result = await sendEmail(
@@ -1026,9 +1055,13 @@ export const onGuestResponse = onValueWritten(
 <p><a href="${APP_URL}/calendar">View your calendar</a></p>`
     )
     if (result === 'retry')
+      // Don't push yet — this event will be redelivered and this whole
+      // handler reruns; pushing here too would duplicate it on every retry.
       throw new Error(
         `Transient failure sending RSVP email to ${hostUser.email}`
       )
+    // This attempt is final (email sent or permanently failed) — push exactly once.
+    await sendPushToUser(hostUid, pushNotification)
   }
 )
 
@@ -1080,7 +1113,7 @@ export const onGatheringStateChange = onValueUpdated(
           title: subject,
           body: `Hosted by ${hostName}`,
           link: `${APP_URL}/calendar`,
-        }).catch((err) => console.error(`Push failed for ${uid}:`, err))
+        })
       )
     )
     const safeHost = escapeHtml(hostName)
