@@ -76,6 +76,7 @@
     </v-footer>
 
     <CookieConsent />
+    <InstallBanner />
   </v-app>
 </template>
 
