@@ -148,12 +148,7 @@
               <div v-if="!visibleGames.length" class="empty-desc py-4">
                 No games match your filters.
               </div>
-              <v-virtual-scroll
-                v-else
-                :items="visibleGames"
-                item-height="104"
-                max-height="72vh"
-              >
+              <v-virtual-scroll v-else :items="visibleGames" item-height="104">
                 <template #default="{ item: entry }">
                   <v-list-item class="game-item mb-2">
                     <template #prepend>
@@ -173,27 +168,32 @@
                         >
                       </v-avatar>
                     </template>
-                    <v-list-item-title>{{ entry.game.name }}</v-list-item-title>
-                    <div
-                      v-if="entry.game.categories?.length"
-                      class="d-flex flex-wrap align-center gap-1 mt-1 mb-1"
-                    >
-                      <v-chip
-                        v-for="cat in entry.game.categories.slice(0, 4)"
-                        :key="cat"
-                        size="x-small"
-                        variant="tonal"
-                        color="info"
-                        >{{ cat }}</v-chip
+                    <div class="game-item-info">
+                      <v-list-item-title>{{
+                        entry.game.name
+                      }}</v-list-item-title>
+                      <div
+                        v-if="entry.game.categories?.length"
+                        class="d-flex flex-wrap align-center gap-1 mt-1 mb-1"
                       >
-                      <span
-                        v-if="entry.game.categories.length > 4"
-                        class="text-caption text-medium-emphasis"
-                        >+{{ entry.game.categories.length - 4 }}</span
-                      >
+                        <v-chip
+                          v-for="cat in entry.game.categories.slice(0, 4)"
+                          :key="cat"
+                          size="x-small"
+                          variant="tonal"
+                          color="info"
+                          >{{ cat }}</v-chip
+                        >
+                        <span
+                          v-if="entry.game.categories.length > 4"
+                          class="text-caption text-medium-emphasis"
+                          >+{{ entry.game.categories.length - 4 }}</span
+                        >
+                      </div>
                     </div>
                     <v-rating
                       v-if="!isFriendView"
+                      class="game-item-rating"
                       :model-value="opinions[entry.game.id]?.rating ?? 0"
                       hover
                       size="small"
@@ -205,11 +205,11 @@
                     />
                     <div
                       v-if="formatGameInfo(entry.game)"
-                      class="text-caption text-medium-emphasis"
+                      class="text-caption text-medium-emphasis game-item-meta"
                     >
                       {{ formatGameInfo(entry.game) }}
                     </div>
-                    <div class="event-actions">
+                    <div class="event-actions game-item-actions">
                       <v-btn
                         icon
                         size="small"
@@ -266,7 +266,7 @@
                       density="compact"
                       rows="2"
                       hide-details
-                      class="mt-2"
+                      class="mt-2 game-item-note"
                       @blur="
                         (e: FocusEvent) =>
                           updateGameNote(
@@ -287,8 +287,11 @@
               <v-list>
                 <template v-for="entry in alsoRatedGames" :key="entry.gameId">
                   <v-list-item class="game-item mb-2">
-                    <v-list-item-title>{{ entry.name }}</v-list-item-title>
+                    <v-list-item-title class="game-item-info">{{
+                      entry.name
+                    }}</v-list-item-title>
                     <v-rating
+                      class="game-item-rating"
                       :model-value="entry.rating ?? 0"
                       hover
                       size="small"
@@ -299,7 +302,7 @@
                           updateOpinionRating(entry.gameId, entry.name, val)
                       "
                     />
-                    <div class="event-actions">
+                    <div class="event-actions game-item-actions">
                       <v-btn
                         icon
                         size="small"
@@ -960,5 +963,40 @@ function onGameSearchError(error: Error) {
 /* Add row gap between wrapped chip rows in the genre filter */
 .genre-chip-group :deep(.v-slide-group__content) {
   row-gap: 6px;
+}
+
+/* Desktop: a 2-row grid (name+chips | rating, then meta text | actions)
+   instead of 4-5 stacked full-width lines — the card's reading-width cap
+   (see Page structure pattern) means name+chips+rating+meta+actions never
+   all fit on one line, but pairing them two-per-row still cuts row height
+   roughly in half and stops rating/actions from sitting alone on a mostly
+   empty line. Mobile keeps the single-column vertical stack. */
+@media (min-width: 960px) {
+  .game-item :deep(.v-list-item__content) {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    align-items: center;
+    column-gap: 16px;
+    row-gap: 4px;
+  }
+  .game-item :deep(.game-item-info) {
+    grid-column: 1;
+    min-width: 0;
+  }
+  .game-item :deep(.game-item-rating) {
+    grid-column: 2;
+    justify-self: end;
+  }
+  .game-item :deep(.game-item-meta) {
+    grid-column: 1;
+  }
+  .game-item :deep(.game-item-actions) {
+    grid-column: 2;
+    justify-self: end;
+    margin-top: 0;
+  }
+  .game-item :deep(.game-item-note) {
+    grid-column: 1 / -1;
+  }
 }
 </style>
