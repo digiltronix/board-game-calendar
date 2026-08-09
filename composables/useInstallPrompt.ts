@@ -16,11 +16,20 @@ const deferredPrompt = ref<BeforeInstallPromptEvent | null>(null)
 const installed = ref(false)
 let listenersAttached = false
 
+// Whether the visitor dismissed the install banner (components/InstallBanner.vue).
+// Persisted so "Not now" sticks across sessions; the profile page's own
+// "Install app" button ignores this and stays available regardless.
+const BANNER_DISMISSED_KEY = 'bgc-install-banner-dismissed'
+const bannerDismissed = ref(false)
+
 export function attachInstallPromptListeners() {
   if (listenersAttached || typeof window === 'undefined') return
   listenersAttached = true
   if (window.matchMedia?.('(display-mode: standalone)').matches) {
     installed.value = true
+  }
+  if (window.localStorage.getItem(BANNER_DISMISSED_KEY) === '1') {
+    bannerDismissed.value = true
   }
   window.addEventListener('beforeinstallprompt', (e) => {
     e.preventDefault()
@@ -36,6 +45,7 @@ export function useInstallPrompt() {
   const canInstall = computed(
     () => deferredPrompt.value !== null && !installed.value
   )
+  const showBanner = computed(() => canInstall.value && !bannerDismissed.value)
 
   async function promptInstall(): Promise<'accepted' | 'dismissed' | 'unavailable'> {
     const evt = deferredPrompt.value
@@ -46,5 +56,12 @@ export function useInstallPrompt() {
     return choice.outcome
   }
 
-  return { canInstall, installed, promptInstall }
+  function dismissBanner() {
+    bannerDismissed.value = true
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem(BANNER_DISMISSED_KEY, '1')
+    }
+  }
+
+  return { canInstall, installed, showBanner, promptInstall, dismissBanner }
 }
