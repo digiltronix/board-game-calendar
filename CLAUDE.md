@@ -276,7 +276,7 @@ The app uses a consistent **"Evening Game Table"** design system: a deep green f
 | `error` | `#E05252` | Destructive actions (delete, cancel, decline). ~4.7:1 on card. |
 | `warning` | `#D4A820` | Pending / invited states (chips). |
 | `info` | `#5B8FAB` | Informational states. |
-| `on-surface` / `on-background` | `#E8D4A8` | Body text on dark backgrounds (warm parchment). ~12.4:1 on card. |
+| `on-surface` / `on-background` / `on-surface-variant` | `#E8D4A8` | Body text on dark backgrounds (warm parchment). ~12.4:1 on card, ~11.5:1 on `surface-variant`. `on-surface-variant` must stay set explicitly — Vuetify's auto-generated default for it resolves to near-black, which is illegible on this dark palette (e.g. `VBtn color="surface-variant" variant="flat"` in `CookieConsent.vue`/`InstallBanner.vue`). |
 
 **Semantic color rules:**
 - Destructive action → `color="error"`
@@ -403,6 +403,7 @@ Ratios below are measured against the walnut card surface `#20140A` (where body 
 | Info text/tonal | `#5B8FAB` | ~5.1:1 ✓ |
 | Body text | `#E8D4A8` | ~12.4:1 ✓ |
 | Button label on primary | `#100A04` on `#C8860A` | ~6.4:1 ✓ |
+| Button label on surface-variant | `#E8D4A8` on `#2A1A0B` | ~11.5:1 ✓ |
 | Section labels | `#c8860a` at `0.8rem` | ~5.9:1 ✓ |
 
 Inactive rating stars use `rgba(200,134,10,0.7)` (~3.5:1) — clears the 3:1 WCAG 1.4.11 threshold for UI components against the card. **Do not drop below 0.7**; `0.55` fails on the lighter walnut surface.

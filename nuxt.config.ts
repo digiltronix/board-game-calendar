@@ -108,6 +108,7 @@ export default defineNuxtConfig({
               success: '#55B855',
               'on-background': '#F0DFC4',
               'on-surface': '#E8D4A8',
+              'on-surface-variant': '#E8D4A8',
               'on-primary': '#100A04',
               'on-secondary': '#F0DFC4',
             },
