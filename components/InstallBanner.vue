@@ -33,7 +33,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
 
 const { showBanner, promptInstall, dismissBanner } = useInstallPrompt()
 const { hasResponded: cookieConsentAnswered } = useCookieConsent()
@@ -42,12 +42,36 @@ const { hasResponded: cookieConsentAnswered } = useCookieConsent()
 // beforeinstallprompt is client-only) and defer to the cookie consent banner
 // so the two fixed bottom banners never stack on a first-time visit.
 const mounted = ref(false)
+
+// Desktop Chrome/Edge already surface an install icon in the address bar,
+// so the proactive banner is mobile-only; desktop users still have the
+// Profile page's "Install app" button (unaffected by this check). Matches
+// the same < md (960px) split the game-item list layout uses for its own
+// mobile/desktop switch.
+const MOBILE_QUERY = '(max-width: 959px)'
+const isMobileViewport = ref(false)
+let mediaQuery: MediaQueryList | null = null
+function onMediaChange(e: MediaQueryListEvent) {
+  isMobileViewport.value = e.matches
+}
+
 onMounted(() => {
   mounted.value = true
+  mediaQuery = window.matchMedia(MOBILE_QUERY)
+  isMobileViewport.value = mediaQuery.matches
+  mediaQuery.addEventListener('change', onMediaChange)
+})
+
+onUnmounted(() => {
+  mediaQuery?.removeEventListener('change', onMediaChange)
 })
 
 const show = computed(
-  () => mounted.value && cookieConsentAnswered.value && showBanner.value
+  () =>
+    mounted.value &&
+    isMobileViewport.value &&
+    cookieConsentAnswered.value &&
+    showBanner.value
 )
 
 const onInstall = () => promptInstall()
