@@ -1,2 +1,2 @@
 npx lint-staged
-yarn workspace functions run build
+pnpm --filter functions run build

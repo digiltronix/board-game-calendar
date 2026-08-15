@@ -23,23 +23,27 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
 
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11
       - name: Setup node
         uses: actions/setup-node@v6
         with:
           node-version: 24
-          cache: 'yarn'
+          cache: 'pnpm'
 
       - name: Install dependencies
-        run: yarn install --immutable
+        run: pnpm install --frozen-lockfile
 
       - name: Run linter
-        run: yarn lint
+        run: pnpm run lint
 
       - name: Run tests
-        run: yarn test
+        run: pnpm run test
 
       - name: Build functions
-        run: yarn workspace functions run build
+        run: pnpm --filter functions run build
 
   # Detect whether anything affecting the RTDB security-rules tests changed, so
   # the slow, emulator-backed `rules` job below only runs when relevant.
@@ -78,11 +82,15 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
 
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11
       - name: Setup node
         uses: actions/setup-node@v6
         with:
           node-version: 24
-          cache: 'yarn'
+          cache: 'pnpm'
 
       - name: Setup Java
         uses: actions/setup-java@v4
@@ -91,7 +99,7 @@ jobs:
           java-version: '21'
 
       - name: Install dependencies
-        run: yarn install --immutable
+        run: pnpm install --frozen-lockfile
 
       - name: Run security-rules tests
-        run: yarn test:rules
+        run: pnpm run test:rules

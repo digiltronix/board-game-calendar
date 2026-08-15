@@ -21,17 +21,21 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
 
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11
       - name: Setup node
         uses: actions/setup-node@v6
         with:
           node-version: 24
-          cache: 'yarn'
+          cache: 'pnpm'
 
       - name: Install dependencies
-        run: yarn install --immutable
+        run: pnpm install --frozen-lockfile
 
       - name: Generate
-        run: yarn run generate
+        run: pnpm run generate
         env:
           BASE_URL: /
           NODE_ENV: production
